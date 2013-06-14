@@ -97,6 +97,7 @@ struct defaultOutputFormatEntry {
 } ;
 
 struct defaultOutputFormatEntry defaultoutputformats[] = {
+  {"json","UTFGRID","application/json"},
   {"png","AGG/PNG","image/png"},
   {"jpeg","AGG/JPEG","image/jpeg"},
 #ifdef USE_GD
@@ -160,9 +161,19 @@ outputFormatObj *msCreateDefaultOutputFormat( mapObj *map,
     const char *name )
 
 {
+
   outputFormatObj *format = NULL;
   if( strcasecmp(driver,"GD/PC256") == 0 ) {
     return msCreateDefaultOutputFormat( map, "GD/PNG", "gdpng" );
+  }
+
+  if( strcasecmp(driver,"UTFGRID") == 0 ) {
+    if(!name) name="myUTFGrid";
+    format = msAllocOutputFormat( map, name, "UTFGRID" );
+    format->mimetype = msStrdup("application/json");
+    format->imagemode = MS_IMAGEMODE_RGB;
+    format->extension = msStrdup("json");
+    format->renderer = MS_RENDER_WITH_UTFGRID;
   }
 
   if( strcasecmp(driver,"GD/GIF") == 0 ) {
@@ -1053,6 +1064,8 @@ int msInitializeRendererVTable(outputFormatObj *format)
   switch(format->renderer) {
     case MS_RENDER_WITH_AGG:
       return msPopulateRendererVTableAGG(format->vtable);
+    case MS_RENDER_WITH_UTFGRID:
+      return msPopulateRendererVTableUTFGRID(format->vtable);
 #ifdef USE_GD
     case MS_RENDER_WITH_GD:
       return msPopulateRendererVTableGD(format->vtable);

@@ -394,6 +394,7 @@ extern "C" {
 #define MS_RENDER_WITH_AGG 105
 #define MS_RENDER_WITH_GD 106
 #define MS_RENDER_WITH_KML 107
+#define MS_RENDER_WITH_UTFGRID 108
 
 #ifndef SWIG
 
@@ -2783,9 +2784,12 @@ extern "C" {
   MS_DLL_EXPORT int msPopulateRendererVTableCairoPDF( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGL( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableAGG( rendererVTableObj *renderer );
+  MS_DLL_EXPORT int msPopulateRendererVTableUTFGRID( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableGD( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableKML( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGR( rendererVTableObj *renderer );
+  MS_DLL_EXPORT int msPopulateRendererVTableOGR( rendererVTableObj *renderer );
+
 #ifdef USE_CAIRO
   MS_DLL_EXPORT void msCairoCleanup(void);
 #endif

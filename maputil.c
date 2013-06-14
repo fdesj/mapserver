@@ -845,6 +845,18 @@ int msSaveImage(mapObj *map, imageObj *img, char *filename)
         nReturnVal = msSaveImageGDAL(map, img, filename);
     } else
 #endif
+
+#ifdef USE_UTFGRID
+    if(renderer->supports_pixel_buffer) {
+      rasterBufferObj data;
+      if(renderer->getRasterBufferHandle(img,&data) != MS_SUCCESS)
+        return MS_FAILURE;
+
+      nReturnVal = msSaveRasterBuffer(map,&data,stream,img->format );
+     } else        
+#endif
+
+
       if (MS_RENDERER_PLUGIN(img->format)) {
         rendererVTableObj *renderer = img->format->vtable;
         FILE *stream = NULL;
