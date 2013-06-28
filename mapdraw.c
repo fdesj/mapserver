@@ -167,20 +167,55 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
       /* don't set the image color */
       bg = NULL;
     }
-    image = renderer->createImage(map->width, map->height, map->outputformat,bg);
+
+  /* This is only for the demo. */
+  /* TODO: add grid-resolution  */
+  /* to mapfiles                */
+  if( strcasecmp(map->outputformat->driver,"UTFGRID") == 0 ) {
+    image = renderer->createImage(map->width/4, map->height/4, map->outputformat,bg);
     if (image == NULL)
       return(NULL);
     image->format = map->outputformat;
     image->format->refcount++;
-    image->width = map->width;
-    image->height = map->height;
+    image->width = map->width/4;
+    image->height = map->height/4;
 
     image->resolution = map->resolution;
     image->resolutionfactor = map->resolution/map->defresolution;
-    if (map->web.imagepath)
-      image->imagepath = msStrdup(map->web.imagepath);
-    if (map->web.imageurl)
-      image->imageurl = msStrdup(map->web.imageurl);
+
+   
+
+    if(!image) {
+      msSetError(MS_GDERR, "Unable to initialize image.", "msPrepareImage()");
+      return(NULL);
+    }
+
+    map->cellsize = msAdjustExtent(&(map->extent),map->width/4,map->height/4);
+
+    status = msCalculateScale(map->extent,map->units,map->width/4,map->height/4, map->resolution/4, &map->scaledenom);
+    if(status != MS_SUCCESS) {
+      msFreeImage(image);
+      return(NULL);
+    }
+
+    return image;
+  }
+  /* Only for UTFGrid demo. */
+
+  image = renderer->createImage(map->width, map->height, map->outputformat,bg);
+  if (image == NULL)
+    return(NULL);
+  image->format = map->outputformat;
+  image->format->refcount++;
+  image->width = map->width;
+  image->height = map->height;
+
+  image->resolution = map->resolution;
+  image->resolutionfactor = map->resolution/map->defresolution;
+  if (map->web.imagepath)
+    image->imagepath = msStrdup(map->web.imagepath);
+  if (map->web.imageurl)
+    image->imageurl = msStrdup(map->web.imageurl);
 
   } else if( MS_RENDERER_IMAGEMAP(map->outputformat) ) {
     image = msImageCreateIM(map->width, map->height, map->outputformat,
@@ -261,6 +296,7 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
   image->refpt.y = MS_MAP2IMAGE_Y_IC_DBL(0, map->extent.maxy, 1.0/map->cellsize);
 
   return image;
+  
 }
 
 

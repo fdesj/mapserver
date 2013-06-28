@@ -228,7 +228,6 @@ int agg2RenderLine(imageObj *img, shapeObj *p, strokeStyleObj *style)
   line_adaptor lines = line_adaptor(p);
 
 #ifdef AGG_ALIASED_ENABLED
-  r->m_rasterizer_primitives.reset();
   r->m_renderer_primitives.line_color(aggColor(style->color));
   r->m_rasterizer_primitives.add_path(lines);
   return MS_SUCCESS;

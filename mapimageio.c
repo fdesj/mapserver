@@ -546,6 +546,86 @@ int saveAsPNG(mapObj *map,rasterBufferObj *rb, streamInfo *info, outputFormatObj
   }
 }
 
+int saveAsJSON(mapObj *map,rasterBufferObj *rb, streamInfo *info, outputFormatObj *format)
+{
+  if(rb->type == MS_BUFFER_BYTE_RGBA) {
+    int row, i, waterPresence;
+    long int *data;
+    int idcorrection = 0;
+    unsigned int *rowdata;
+    data = format->vtable->renderer_data;
+
+    rowdata = (unsigned int*)malloc(rb->width*sizeof(unsigned int));
+    fprintf(stdout, "{\"grid\":[");
+    for(row=0; row<rb->height; row++) {
+      unsigned int *pixptr = rowdata;
+      char utfgrid[rb->width*rb->height+1];
+      utfgrid[0]='\0';
+      int col;
+      unsigned char *r,*g,*b;
+      r=rb->data.rgba.r+row*rb->data.rgba.row_step;
+      g=rb->data.rgba.g+row*rb->data.rgba.row_step;
+      b=rb->data.rgba.b+row*rb->data.rgba.row_step;
+
+      waterPresence = 0;
+
+      for(col=0; col<rb->width; col++) {
+        char pixelID = *r + (*g)*0x100 + (*b)*0x10000 + 32;
+        if(pixelID == 32) {
+          waterPresence = 1;
+        } 
+        if(pixelID >= 34) {
+          char temp[2];
+          temp[0] = pixelID+1;
+          temp[1] = '\0';
+          strcat(utfgrid, temp);
+        } else if (pixelID >= 93) {
+          char temp[2];
+          temp[0] = pixelID+2;
+          temp[1] = '\0';
+          strcat(utfgrid, temp);
+        } else {
+          char temp[2];
+          temp[0] = pixelID;
+          temp[1] = '\0';
+          strcat(utfgrid, temp);
+        }
+          r+=rb->data.rgba.pixel_step;
+          g+=rb->data.rgba.pixel_step;
+          b+=rb->data.rgba.pixel_step;
+      }
+      fprintf(stdout, "\"%s\"", utfgrid);
+      if(row<rb->height-1)
+        fprintf(stdout, ",");
+    }
+    fprintf(stdout, "],\"keys\":[");
+    if(waterPresence) {
+      fprintf(stdout, "\"\",");
+    }
+    i=0;
+    while(data[i]!=0) {
+      fprintf(stdout, "\"%ld\"", data[i]);
+      i++;
+      if(data[i]!=0)
+        fprintf(stdout, ",");
+    }
+    fprintf(stdout, "],\"data\":{");
+    i=0;
+    while(data[i]!=0) {
+      fprintf(stdout, "\"%ld\":{\"shapeid\":%ld}", data[i], data[i]);
+      i++;
+      if(data[i]!=0)
+        fprintf(stdout, ",");
+    }
+    fprintf(stdout, "}}");
+    free(rowdata);
+    return MS_SUCCESS;
+  } else {
+    msSetError(MS_MISCERR,"Unknown buffer type","saveAsPNG()");
+    return MS_FAILURE;
+  }
+}
+
 /* For platforms with incomplete ANSI defines. Fortunately,
    SEEK_SET is defined to be zero by the standard. */
 
@@ -962,6 +1042,12 @@ int msSaveRasterBuffer(mapObj *map, rasterBufferObj *rb, FILE *stream,
     info.fp = stream;
     info.buffer=NULL;
     return saveAsJPEG(map, rb,&info,format);
+  } else if(strcasestr(format->driver,"UTFGrid")) {
+    streamInfo info;
+    info.fp = stream;
+    info.buffer = NULL;
+
+    return saveAsJSON(map, rb,&info,format);
   } else {
     msSetError(MS_MISCERR,"unsupported image format\n", "msSaveRasterBuffer()");
     return MS_FAILURE;

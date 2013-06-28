@@ -474,7 +474,7 @@ extern "C" {
   enum MS_FILE_TYPE {MS_FILE_MAP, MS_FILE_SYMBOL};
   enum MS_UNITS {MS_INCHES, MS_FEET, MS_MILES, MS_METERS, MS_KILOMETERS, MS_DD, MS_PIXELS, MS_PERCENTAGES, MS_NAUTICALMILES};
   enum MS_SHAPE_TYPE {MS_SHAPE_POINT, MS_SHAPE_LINE, MS_SHAPE_POLYGON, MS_SHAPE_NULL};
-  enum MS_LAYER_TYPE {MS_LAYER_POINT, MS_LAYER_LINE, MS_LAYER_POLYGON, MS_LAYER_RASTER, MS_LAYER_ANNOTATION, MS_LAYER_QUERY, MS_LAYER_CIRCLE, MS_LAYER_TILEINDEX, MS_LAYER_CHART};
+  enum MS_LAYER_TYPE {MS_LAYER_POINT, MS_LAYER_LINE, MS_LAYER_POLYGON, MS_LAYER_RASTER, MS_LAYER_ANNOTATION, MS_LAYER_QUERY, MS_LAYER_CIRCLE, MS_LAYER_TILEINDEX, MS_LAYER_CHART, MS_LAYER_UTFGRID};
   enum MS_FONT_TYPE {MS_TRUETYPE, MS_BITMAP};
 
 #define MS_POSITIONS_LENGTH 14
@@ -1638,7 +1638,11 @@ extern "C" {
 
 #ifndef SWIG    
     expressionObj _geomtransform;
-#endif    
+#endif  
+
+  /* RFC93 UTFGrid support */
+    char *utfitem;
+    expressionObj utfdata;
   };
 
   /************************************************************************/
@@ -2784,7 +2788,7 @@ extern "C" {
   MS_DLL_EXPORT int msPopulateRendererVTableCairoPDF( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGL( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableAGG( rendererVTableObj *renderer );
-  MS_DLL_EXPORT int msPopulateRendererVTableUTFGRID( rendererVTableObj *renderer );
+  MS_DLL_EXPORT int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableGD( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableKML( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGR( rendererVTableObj *renderer );
