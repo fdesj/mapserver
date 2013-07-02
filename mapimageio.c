@@ -570,7 +570,7 @@ int saveAsJSON(mapObj *map,rasterBufferObj *rb, streamInfo *info, outputFormatOb
       waterPresence = 0;
 
       for(col=0; col<rb->width; col++) {
-        char pixelID = *r + (*g)*0x100 + (*b)*0x10000 + 32;
+        char pixelID = (*r + (*g)*0x100 + (*b)*0x10000)%224 + 32;
         if(pixelID == 32) {
           waterPresence = 1;
         } 
@@ -579,7 +579,7 @@ int saveAsJSON(mapObj *map,rasterBufferObj *rb, streamInfo *info, outputFormatOb
           temp[0] = pixelID+1;
           temp[1] = '\0';
           strcat(utfgrid, temp);
-        } else if (pixelID >= 93) {
+        } else if (pixelID >= 92) {
           char temp[2];
           temp[0] = pixelID+2;
           temp[1] = '\0';
