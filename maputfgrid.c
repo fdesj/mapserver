@@ -45,8 +45,8 @@ UTFGridRenderer;
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
 
 /*
- * Generic function to tell the underline device that shape
- * drawing is stating
+ * Create an imageObj, create a fake outputFormatObj to use with AGG, initialize driver.
+ *
  */
 imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, colorObj* bg)
 {
@@ -70,6 +70,7 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
   r->aggFakeOutput->refcount = 0;
   r->aggFakeOutput->vtable = NULL;
   r->aggFakeOutput->device = NULL;
+  r->aggFakeOutput->transparent = 1;
   r->aggFakeOutput->imagemode = MS_IMAGEMODE_RGB;
   r->aggFakeOutput->mimetype = msStrdup("image/png");
   r->aggFakeOutput->imagemode = MS_IMAGEMODE_RGB;
@@ -78,6 +79,7 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
   if(MS_RENDERER_PLUGIN(r->aggFakeOutput)) {
     msInitializeRendererVTable(r->aggFakeOutput);
   }
+  msSetOutputFormatOption(r->aggFakeOutput, "GAMMA", "0.00001");
 
   image = r->aggFakeOutput->vtable->createImage(width, height, r->aggFakeOutput, bg);
   r->aggRendererTool = (void*) image->img.plugin;
@@ -89,8 +91,8 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
 }
 
 /*
- * Generic function to tell the underline device that shape
- * drawing is stating
+ * Draw the UTFGrid from AGG raster buffer datas.
+ *
  */
 int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
@@ -98,7 +100,7 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 }
 
 /*
- * Render polygon shapes with UTFGrid
+ * Render polygon shapes with UTFGrid. Uses color bytes to carry table ID.
  *
  */
 int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
@@ -124,6 +126,11 @@ int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
   return MS_SUCCESS;
 }
 
+/*
+ * Initialize raster buffer for AGG uses. Using generic type which are equivalent instead of AGG
+ * specific types.
+ *
+ */
 int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, int mode)
 {
   rb->type = MS_BUFFER_BYTE_RGBA;
@@ -140,6 +147,10 @@ int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, in
   return MS_SUCCESS;
 }
 
+/*
+ * Get AGG raster buffer handle for rendering uses.
+ *
+ */
 int utfgridGetRasterBufferHandle(imageObj *img, rasterBufferObj * rb)
 {  
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
@@ -150,7 +161,7 @@ int utfgridGetRasterBufferHandle(imageObj *img, rasterBufferObj * rb)
 }
 
 /*
- * Incase of error, free the memory used by image
+ * Incase of error, free the memory used by UTFGrid driver
  * 
  */
 int freeImageUTFGrid(imageObj *img)
@@ -170,21 +181,37 @@ int freeImageUTFGrid(imageObj *img)
   return MS_SUCCESS;
 }
 
+/*
+ * Return success to avoid error message.
+ *
+ */
 int getTruetypeTextBBoxUTFGrid(rendererVTableObj *renderer, char **fonts, int numfonts, double size, char *string, rectObj *rect, double **advances,int bAdjustBaseline)
 {
   return MS_SUCCESS;
 }
 
+/*
+ * Return success to avoid error message.
+ *
+ */
 int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
 	return MS_SUCCESS;
 }
 
+/*
+ * Return success to avoid error message.
+ *
+ */
 int closeNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
 	return MS_SUCCESS;
 }
 
+/*
+ * Return success to avoid error message.
+ *
+ */
 int utfgridRenderGlyphs(imageObj *img, double x, double y, labelStyleObj *style, char *text)
 {
   return MS_SUCCESS;
