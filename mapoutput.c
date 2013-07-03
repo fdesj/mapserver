@@ -168,8 +168,8 @@ outputFormatObj *msCreateDefaultOutputFormat( mapObj *map,
   }
 
   if( strcasecmp(driver,"UTFGRID") == 0 ) {
-    if(!name) name="myUTFGrid";
-    format = msAllocOutputFormat( map, name, "UTFGrid" );
+    if(!name) name="utfgrid";
+    format = msAllocOutputFormat( map, name, driver );
     format->mimetype = msStrdup("application/json");
     format->imagemode = MS_IMAGEMODE_RGB;
     format->extension = msStrdup("json");
