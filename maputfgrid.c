@@ -85,7 +85,6 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
   r->aggRendererTool = (void*) image->img.plugin;
   image->img.plugin = (void*) r;
   format->vtable->renderer_data = (void*) &r->lookupTableData;
-  r->lookupTableData.counter=0;
 
   return image;
 }
@@ -96,7 +95,74 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
  */
 int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
-  return MS_FAILURE;
+  rasterBufferObj *rb;
+  rb = (rasterBufferObj *) calloc(1, sizeof (rasterBufferObj));
+  MS_CHECK_ALLOC(rb, sizeof (rasterBufferObj), MS_FAILURE);
+
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  img->img.plugin = (void*) r->aggRendererTool;
+  r->aggFakeOutput->vtable->getRasterBufferHandle(img, rb);
+
+  int row, col, i, waterPresence;
+  waterPresence = 0;
+
+  lookupTable *data;
+  data = format->vtable->renderer_data;
+
+  fprintf(stdout, "{\"grid\":[");
+  /*
+   * Printing grid pixels.
+   *
+   */
+  for(row=0; row<rb->height; row++) {
+    unsigned char *r,*g,*b;
+    r=rb->data.rgba.r+row*rb->data.rgba.row_step;
+    g=rb->data.rgba.g+row*rb->data.rgba.row_step;
+    b=rb->data.rgba.b+row*rb->data.rgba.row_step;
+
+    if(row!=0)
+      fprintf(stdout, ",");
+    fprintf(stdout, "\"");
+
+    for(col=0; col<rb->width; col++) {
+      char pixelID = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
+      if(pixelID == 32) {
+        waterPresence = 1;
+      } 
+      if(pixelID >= 34) {
+        pixelID++;
+      }
+      if (pixelID >= 93) {
+         pixelID++;
+      } 
+      fprintf(stdout, "%c", pixelID);
+      r+=rb->data.rgba.pixel_step;
+      g+=rb->data.rgba.pixel_step;
+      b+=rb->data.rgba.pixel_step;
+    }
+    fprintf(stdout, "\"");
+  }
+
+  fprintf(stdout, "],\"keys\":[");
+  if(waterPresence==1) {
+    fprintf(stdout, "\"\",");
+  }
+  for(i=0;i<data->counter;i++) {  
+    if(i!=0)
+      fprintf(stdout, ",");
+    fprintf(stdout, "\"%ld\"", data->table[i]);
+  }
+  fprintf(stdout, "],\"data\":{");
+  i=0;
+  for(i=0;i<data->counter;i++) {
+    if(i!=0)
+      fprintf(stdout, ",");
+    fprintf(stdout, "\"%ld\":{\"shapeid\":%ld}", data->table[i], data->table[i]);
+  }
+  fprintf(stdout, "}}");
+
+  img->img.plugin = (void*) r;
+  return MS_SUCCESS;
 }
 
 /*
@@ -107,11 +173,11 @@ int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);  
   img->img.plugin = (void*) r->aggRendererTool;
+  r->lookupTableData.counter++;
   color->red = r->lookupTableData.counter & 0x000000ff;
   color->green = ((r->lookupTableData.counter & 0x0000ff00) / 0x100);
   color->blue = ((r->lookupTableData.counter & 0x00ff0000) / 0x10000);
-  r->lookupTableData.table[r->lookupTableData.counter]=p->index;
-  r->lookupTableData.counter++;
+  r->lookupTableData.table[r->lookupTableData.counter-1]=p->index;
   r->aggFakeOutput->vtable->renderPolygon(img, p, color);
   img->img.plugin = (void*) r;
   return MS_SUCCESS;
@@ -144,19 +210,6 @@ int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, in
   rb->data.rgba.g = &(rb->data.rgba.pixels[1]);
   rb->data.rgba.b = &(rb->data.rgba.pixels[0]);
 
-  return MS_SUCCESS;
-}
-
-/*
- * Get AGG raster buffer handle for rendering uses.
- *
- */
-int utfgridGetRasterBufferHandle(imageObj *img, rasterBufferObj * rb)
-{  
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);
-  img->img.plugin = (void*) r->aggRendererTool;
-  r->aggFakeOutput->vtable->getRasterBufferHandle(img, rb);
-  img->img.plugin = (void*) r;
   return MS_SUCCESS;
 }
 
@@ -224,7 +277,7 @@ int utfgridRenderGlyphs(imageObj *img, double x, double y, labelStyleObj *style,
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
   renderer->supports_transparent_layers = 0;
-  renderer->supports_pixel_buffer = 1;
+  renderer->supports_pixel_buffer = 0;
   renderer->use_imagecache = 0;
   renderer->supports_clipping = 0;
   renderer->supports_svg = 0;
@@ -234,7 +287,6 @@ int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
   renderer->saveImage=&saveImageUTFGrid;
   renderer->freeImage=&freeImageUTFGrid;
 
-  renderer->getRasterBufferHandle = &utfgridGetRasterBufferHandle;
   renderer->initializeRasterBuffer = utfgridInitializeRasterBuffer;
 
   renderer->renderPolygon=&renderPolygonUTFGrid;

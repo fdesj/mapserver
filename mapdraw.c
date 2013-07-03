@@ -169,16 +169,16 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
     }
 
   /* This is only for the demo. */
-  /* TODO: add grid-resolution  */
-  /* to mapfiles                */
   if( strcasecmp(map->outputformat->driver,"UTFGRID") == 0 ) {
-    image = renderer->createImage(map->width/4, map->height/4, map->outputformat,bg);
+    double utfRes;
+    utfRes = atof(msGetOutputFormatOption(map->outputformat, "UTFRESOLUTION", "4"));
+    image = renderer->createImage(map->width/utfRes, map->height/utfRes, map->outputformat,bg);
     if (image == NULL)
       return(NULL);
     image->format = map->outputformat;
     image->format->refcount++;
-    image->width = map->width/4;
-    image->height = map->height/4;
+    image->width = map->width/utfRes;
+    image->height = map->height/utfRes;
 
     image->resolution = map->resolution;
     image->resolutionfactor = map->resolution/map->defresolution;
@@ -190,9 +190,9 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
       return(NULL);
     }
 
-    map->cellsize = msAdjustExtent(&(map->extent),map->width/4,map->height/4);
+    map->cellsize = msAdjustExtent(&(map->extent),map->width/utfRes,map->height/utfRes);
 
-    status = msCalculateScale(map->extent,map->units,map->width/4,map->height/4, map->resolution/4, &map->scaledenom);
+    status = msCalculateScale(map->extent,map->units,map->width/utfRes,map->height/utfRes, map->resolution/utfRes, &map->scaledenom);
     if(status != MS_SUCCESS) {
       msFreeImage(image);
       return(NULL);
