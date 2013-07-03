@@ -202,7 +202,7 @@ mapwcs.c maperror.c mapogcfilter.c mapregex.c mapwcs11.c mapfile.c
 mapogcfiltercommon.c maprendering.c mapwcs20.c mapgd.c mapogcsld.c
 mapresample.c mapwfs.c mapgdal.c mapogcsos.c mapscale.c mapwfs11.c
 mapgeomtransform.c mapogroutput.c mapsde.c mapwfslayer.c mapagg.cpp mapkml.cpp
-mapgeomutil.cpp mapkmlrenderer.cpp utfgrid.cpp
+mapgeomutil.cpp mapkmlrenderer.cpp utfgrid.c
 mapogr.cpp mapcontour.c ${REGEX_SOURCES})
 
 add_library(mapserver SHARED ${mapserver_SOURCES} ${agg_SOURCES})

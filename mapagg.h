@@ -180,6 +180,7 @@ private:
   double ox,oy;
 };
 
+class AGG2Renderer;
 
 
 
