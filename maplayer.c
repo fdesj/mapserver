@@ -695,6 +695,13 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
   */
 
   if(nt > 0) {
+    /* utfdata */
+    /* 1st to be treated, easier to retrieve. Subject to changes */
+    if(layer->utfdata.type == MS_EXPRESSION || (layer->utfdata.string && strchr(layer->utfdata.string,'[') != NULL && strchr(layer->utfdata.string,']') != NULL)) {
+        msTokenizeExpression(&(layer->utfdata), layer->items, &(layer->numitems));
+        layer->utfNumItem++;
+    }
+
     /* layer items */
     if(layer->classitem) layer->classitemindex = string2list(layer->items, &(layer->numitems), layer->classitem);
     if(layer->filteritem) layer->filteritemindex = string2list(layer->items, &(layer->numitems), layer->filteritem);

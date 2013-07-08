@@ -29,8 +29,14 @@
 
 #include "mapserver.h"
 
+typedef struct shapeData {
+  char **values;
+  int shapeId;
+}
+shapeData;
+
 typedef struct lookupTable {
-  long int table[256];
+  shapeData  *table;
   int counter;
 }
 lookupTable;
@@ -73,18 +79,17 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
   r->aggFakeOutput->transparent = 1;
   r->aggFakeOutput->imagemode = MS_IMAGEMODE_RGB;
   r->aggFakeOutput->mimetype = msStrdup("image/png");
-  r->aggFakeOutput->imagemode = MS_IMAGEMODE_RGB;
   r->aggFakeOutput->extension = msStrdup("png");
   r->aggFakeOutput->renderer = MS_RENDER_WITH_AGG;
   if(MS_RENDERER_PLUGIN(r->aggFakeOutput)) {
     msInitializeRendererVTable(r->aggFakeOutput);
   }
   msSetOutputFormatOption(r->aggFakeOutput, "GAMMA", "0.00001");
+  r->lookupTableData.table = (shapeData*) msSmallCalloc(1,sizeof(shapeData));
 
   image = r->aggFakeOutput->vtable->createImage(width, height, r->aggFakeOutput, bg);
   r->aggRendererTool = (void*) image->img.plugin;
   image->img.plugin = (void*) r;
-  format->vtable->renderer_data = (void*) &r->lookupTableData;
 
   return image;
 }
@@ -99,15 +104,15 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   rb = (rasterBufferObj *) calloc(1, sizeof (rasterBufferObj));
   MS_CHECK_ALLOC(rb, sizeof (rasterBufferObj), MS_FAILURE);
 
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);
-  img->img.plugin = (void*) r->aggRendererTool;
-  r->aggFakeOutput->vtable->getRasterBufferHandle(img, rb);
+  UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
+  img->img.plugin = (void*) renderer->aggRendererTool;
+  renderer->aggFakeOutput->vtable->getRasterBufferHandle(img, rb);
 
   int row, col, i, waterPresence;
   waterPresence = 0;
 
-  lookupTable *data;
-  data = format->vtable->renderer_data;
+  lookupTable data;
+  data = renderer->lookupTableData;
 
   fprintf(stdout, "{\"grid\":[");
   /*
@@ -147,21 +152,21 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   if(waterPresence==1) {
     fprintf(stdout, "\"\",");
   }
-  for(i=0;i<data->counter;i++) {  
+  for(i=0;i<renderer->lookupTableData.counter;i++) {  
     if(i!=0)
       fprintf(stdout, ",");
-    fprintf(stdout, "\"%ld\"", data->table[i]);
+    fprintf(stdout, "\"%i\"", renderer->lookupTableData.table[i].shapeId);
   }
   fprintf(stdout, "],\"data\":{");
-  i=0;
-  for(i=0;i<data->counter;i++) {
+
+  for(i=0;i<renderer->lookupTableData.counter;i++) {
     if(i!=0)
       fprintf(stdout, ",");
-    fprintf(stdout, "\"%ld\":{\"shapeid\":%ld}", data->table[i], data->table[i]);
+    fprintf(stdout, "\"%i\":{\"admin\":\"%s\"}", renderer->lookupTableData.table[i].shapeId, renderer->lookupTableData.table[i].values[0]);
   }
   fprintf(stdout, "}}");
 
-  img->img.plugin = (void*) r;
+  img->img.plugin = (void*) renderer;
   return MS_SUCCESS;
 }
 
@@ -173,11 +178,23 @@ int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);  
   img->img.plugin = (void*) r->aggRendererTool;
+  layerObj *utfLayer = (void*) img->format->vtable->renderer_data;
+  color->red = (r->lookupTableData.counter+1) & 0x000000ff;
+  color->green = (r->lookupTableData.counter+1) & 0x0000ff00 / 0x100;
+  color->blue = (r->lookupTableData.counter+1) & 0x00ff0000 / 0x10000;
+
+  r->lookupTableData.table = (shapeData*) realloc(r->lookupTableData.table,sizeof(*r->lookupTableData.table)*r->lookupTableData.counter+sizeof(shapeData));
+  if( r->lookupTableData.table == NULL ) {
+    msSetError( MS_MEMERR, NULL, "createImageUTFGrid()" );
+    return MS_FAILURE;
+  }
+  r->lookupTableData.table[r->lookupTableData.counter].values = (char **)msSmallCalloc(utfLayer->utfNumItem, sizeof(char *)*(utfLayer->utfNumItem));
+  int i;
+  for(i=0; i<utfLayer->utfNumItem; i++) {
+    r->lookupTableData.table[r->lookupTableData.counter].values[i] = msStrdup(p->values[i]);
+  }
+  r->lookupTableData.table[r->lookupTableData.counter].shapeId =  p->index;
   r->lookupTableData.counter++;
-  color->red = r->lookupTableData.counter & 0x000000ff;
-  color->green = ((r->lookupTableData.counter & 0x0000ff00) / 0x100);
-  color->blue = ((r->lookupTableData.counter & 0x00ff0000) / 0x10000);
-  r->lookupTableData.table[r->lookupTableData.counter-1]=p->index;
   r->aggFakeOutput->vtable->renderPolygon(img, p, color);
   img->img.plugin = (void*) r;
   return MS_SUCCESS;
@@ -230,6 +247,7 @@ int freeImageUTFGrid(imageObj *img)
   msFree(r->aggFakeOutput->extension);
   msFreeCharArray(r->aggFakeOutput->formatoptions, r->aggFakeOutput->numformatoptions);
   msFree(r->aggFakeOutput);
+  free(r->lookupTableData.table);
   free(r);
   return MS_SUCCESS;
 }
@@ -249,6 +267,8 @@ int getTruetypeTextBBoxUTFGrid(rendererVTableObj *renderer, char **fonts, int nu
  */
 int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
+  img->format->vtable->renderer_data = (void*) layer;
+  layer->refcount++;
 	return MS_SUCCESS;
 }
 
@@ -258,6 +278,8 @@ int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
  */
 int closeNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
+  img->format->vtable->renderer_data = NULL;
+  layer->refcount--;
 	return MS_SUCCESS;
 }
 
