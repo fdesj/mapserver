@@ -674,6 +674,10 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
       nt += msCountChars(layer->class[i]->text.string, '[');
   }
 
+  /* utfgrid count */
+  if(layer->utfdata.type == MS_EXPRESSION || (layer->utfdata.string && strchr(layer->utfdata.string,'[') != NULL && strchr(layer->utfdata.string,']') != NULL))
+    nt += msCountChars(layer->utfdata.string, '[');
+
   /*
   ** allocate space for the item list (worse case size)
   */
@@ -699,7 +703,7 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
     /* 1st to be treated, easier to retrieve. Subject to changes */
     if(layer->utfdata.type == MS_EXPRESSION || (layer->utfdata.string && strchr(layer->utfdata.string,'[') != NULL && strchr(layer->utfdata.string,']') != NULL)) {
         msTokenizeExpression(&(layer->utfdata), layer->items, &(layer->numitems));
-        layer->utfNumItem++;
+        layer->utfnumitems = msCountChars(layer->utfdata.string, '[');
     }
 
     /* layer items */

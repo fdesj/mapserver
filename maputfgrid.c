@@ -85,7 +85,9 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
     msInitializeRendererVTable(r->aggFakeOutput);
   }
   msSetOutputFormatOption(r->aggFakeOutput, "GAMMA", "0.00001");
+  msSetOutputFormatOption(r->aggFakeOutput, "ALIAS", "1");
   r->lookupTableData.table = (shapeData*) msSmallCalloc(1,sizeof(shapeData));
+
 
   image = r->aggFakeOutput->vtable->createImage(width, height, r->aggFakeOutput, bg);
   r->aggRendererTool = (void*) image->img.plugin;
@@ -188,9 +190,9 @@ int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
     msSetError( MS_MEMERR, NULL, "createImageUTFGrid()" );
     return MS_FAILURE;
   }
-  r->lookupTableData.table[r->lookupTableData.counter].values = (char **)msSmallCalloc(utfLayer->utfNumItem, sizeof(char *)*(utfLayer->utfNumItem));
+  r->lookupTableData.table[r->lookupTableData.counter].values = (char **)msSmallCalloc(utfLayer->utfnumitems, sizeof(char *)*(utfLayer->utfnumitems));
   int i;
-  for(i=0; i<utfLayer->utfNumItem; i++) {
+  for(i=0; i<utfLayer->utfnumitems; i++) {
     r->lookupTableData.table[r->lookupTableData.counter].values[i] = msStrdup(p->values[i]);
   }
   r->lookupTableData.table[r->lookupTableData.counter].shapeId =  p->index;
@@ -206,6 +208,8 @@ int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
  */
 int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 {
+  if(p->type == MS_SHAPE_POLYGON)
+    return MS_SUCCESS;
   return MS_SUCCESS;
 }
 
@@ -217,7 +221,7 @@ int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, int mode)
 {
   rb->type = MS_BUFFER_BYTE_RGBA;
-  rb->data.rgba.pixel_step = 4;
+  rb->data.rgba.pixel_step = 1;
   rb->data.rgba.row_step = rb->data.rgba.pixel_step * width;
   rb->width = width;
   rb->height = height;

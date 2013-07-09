@@ -1641,8 +1641,8 @@ extern "C" {
 #endif  
 
   /* RFC93 UTFGrid support */
-    char *utfitem;
-    int utfNumItem;
+    char **utfitems;
+    int utfnumitems;
     expressionObj utfdata;
   };
 

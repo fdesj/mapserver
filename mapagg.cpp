@@ -64,10 +64,10 @@
 
 #include "renderers/agg/include/agg_conv_clipper.h"
 
-#ifdef AGG_ALIASED_ENABLED
+// #ifdef AGG_ALIASED_ENABLED
 #include "renderers/agg/include/agg_renderer_primitives.h"
 #include "renderers/agg/include/agg_rasterizer_outline.h"
-#endif
+// #endif
 
 typedef mapserver::order_bgra band_order;
 
@@ -88,10 +88,10 @@ typedef mapserver::font_engine_freetype_int16 font_engine_type;
 typedef mapserver::font_cache_manager<font_engine_type> font_manager_type;
 typedef mapserver::conv_curve<font_manager_type::path_adaptor_type> font_curve_type;
 
-#ifdef AGG_ALIASED_ENABLED
+// #ifdef AGG_ALIASED_ENABLED
 typedef mapserver::renderer_primitives<renderer_base> renderer_primitives;
 typedef mapserver::rasterizer_outline<renderer_primitives> rasterizer_outline;
-#endif
+// #endif
 static color_type AGG_NO_COLOR = color_type(0, 0, 0, 0);
 
 const mapserver::int8u* rasterfonts[]= {
@@ -125,11 +125,11 @@ class AGG2Renderer
 public:
 
   AGG2Renderer()
-#ifdef AGG_ALIASED_ENABLED
+// #ifdef AGG_ALIASED_ENABLED
     :
     m_renderer_primitives(m_renderer_base),
     m_rasterizer_primitives(m_renderer_primitives)
-#endif
+// #endif
   {
     stroke = NULL;
     dash = NULL;
@@ -153,10 +153,10 @@ public:
   pixel_format m_pixel_format;
   renderer_base m_renderer_base;
   renderer_scanline m_renderer_scanline;
-#ifdef AGG_ALIASED_ENABLED
+// #ifdef AGG_ALIASED_ENABLED
   renderer_primitives m_renderer_primitives;
   rasterizer_outline m_rasterizer_primitives;
-#endif
+// #endif
   rasterizer_scanline m_rasterizer_aa;
   rasterizer_scanline m_rasterizer_aa_gamma;
   mapserver::scanline_p8 sl_poly; /*packed scanlines, works faster when the area is larger
@@ -227,11 +227,16 @@ int agg2RenderLine(imageObj *img, shapeObj *p, strokeStyleObj *style)
   AGG2Renderer *r = AGG_RENDERER(img);
   line_adaptor lines = line_adaptor(p);
 
-#ifdef AGG_ALIASED_ENABLED
-  r->m_renderer_primitives.line_color(aggColor(style->color));
-  r->m_rasterizer_primitives.add_path(lines);
-  return MS_SUCCESS;
-#endif
+
+  /* Primitives funtions enabled */
+  /* For UTFGrid uses */
+  int alias = atof(msGetOutputFormatOption( img->format, "ALIAS", "0" ));
+  if(alias) {
+    r->m_renderer_primitives.line_color(aggColor(style->color));
+    r->m_rasterizer_primitives.add_path(lines);
+    return MS_SUCCESS;
+  }
+  /* For UTFGrid uses */
 
   r->m_rasterizer_aa.reset();
   r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
