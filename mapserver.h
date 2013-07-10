@@ -1641,8 +1641,8 @@ extern "C" {
 #endif  
 
   /* RFC93 UTFGrid support */
-    char **utfitems;
-    int utfnumitems;
+    char *utfitem;
+    int utfitemindex;
     expressionObj utfdata;
   };
 
@@ -2436,6 +2436,7 @@ extern "C" {
   MS_DLL_EXPORT int msShapeGetAnnotation(layerObj *layer, shapeObj *shape);
   MS_DLL_EXPORT int msShapeCheckSize(shapeObj *shape, double minfeaturesize);
   MS_DLL_EXPORT int msAdjustImage(rectObj rect, int *width, int *height);
+  MS_DLL_EXPORT char *msEvalTextExpression(expressionObj *expr, shapeObj *shape);
   MS_DLL_EXPORT double msAdjustExtent(rectObj *rect, int width, int height);
   MS_DLL_EXPORT int msConstrainExtent(rectObj *bounds, rectObj *rect, double overlay);
   MS_DLL_EXPORT int *msGetLayersIndexByGroup(mapObj *map, char *groupname, int *nCount);

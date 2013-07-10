@@ -3895,7 +3895,8 @@ int initLayer(layerObj *layer, mapObj *map)
   layer->_geomtransform.type = MS_GEOMTRANSFORM_NONE;
 
   initExpression(&(layer->utfdata));
-  layer->utfitems = NULL;
+  layer->utfitem = NULL;
+  layer->utfitemindex = -1;
   
   return(0);
 }
@@ -4538,6 +4539,9 @@ int loadLayer(layerObj *layer, mapObj *map)
         break;
       case(UTFDATA):
         if(loadExpression(&(layer->utfdata)) == -1) return(-1); /* loadExpression() cleans up previously allocated expression */
+        break;
+      case(UTFITEM):
+        if(getString(&layer->utfitem) == MS_FAILURE) return(-1); /* loadExpression() cleans up previously allocated expression */
         break;
       case(VALIDATION):
         if(loadHashTable(&(layer->validation)) != MS_SUCCESS) return(-1);

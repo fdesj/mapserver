@@ -30,25 +30,60 @@
 #include "mapserver.h"
 
 typedef struct shapeData {
-  char **values;
-  int shapeId;
+  char *datavalues;
+  char *itemvalue;
+  int serialid;
 }
 shapeData;
 
 typedef struct lookupTable {
   shapeData  *table;
+  int size;
   int counter;
 }
 lookupTable;
 
-typedef struct UTFGridRenderer { 
+typedef struct UTFGridRenderer {   
+  lookupTable *data;
+  int utfresolution;
+  int imagewidth;
+  int imageheight;
+  int layerwatch;
+  int renderlayer;
+  int useutfitem;
   outputFormatObj *aggFakeOutput;
-  void *aggRendererTool;
-  lookupTable lookupTableData;
+  imageObj *aggImage;
+  layerObj *utflayer;
 }
 UTFGridRenderer;
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
+
+lookupTable *initTable()
+{
+  lookupTable *data;
+  data = (lookupTable *) msSmallMalloc(sizeof(lookupTable));
+  data->table = (shapeData *) msSmallCalloc(1,sizeof(shapeData));
+  data->counter = 0;
+  data->size = 1;
+  return data;
+}
+
+int growTable(lookupTable *data)
+{
+  if(data->size == data->counter) {
+    data->table = (shapeData*) msSmallRealloc(data->table,sizeof(*data->table)*data->size*2);
+    data->size = data->size*2;
+  }
+  return MS_SUCCESS;
+}
+
+int freeTable(lookupTable *data)
+{
+  free(data->table);
+  free(data);
+  return MS_SUCCESS;
+}
 
 /*
  * Create an imageObj, create a fake outputFormatObj to use with AGG, initialize driver.
@@ -56,20 +91,20 @@ UTFGridRenderer;
  */
 imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, colorObj* bg)
 {
-  imageObj *image = NULL;
   UTFGridRenderer *r;
-  r = (UTFGridRenderer *) calloc(1, sizeof (UTFGridRenderer));
-  MS_CHECK_ALLOC(r, sizeof (UTFGridRenderer), NULL);
-  r->lookupTableData.counter = 0;
+  r = (UTFGridRenderer *) msSmallMalloc(sizeof(UTFGridRenderer));
 
-  /*
-   *      Allocate the fake format object.           
-   */
-  r->aggFakeOutput = (outputFormatObj *) calloc(1,sizeof(outputFormatObj));
-  if( r->aggFakeOutput == NULL ) {
-    msSetError( MS_MEMERR, NULL, "createImageUTFGrid()" );
-    return NULL;
-  }
+  r->data = initTable();
+
+  r->utfresolution = atof(msGetOutputFormatOption(format, "UTFRESOLUTION", "4"));
+  r->imagewidth = width;
+  r->imageheight = height;
+
+  r->layerwatch = 0;
+
+  r->useutfitem = 0;
+
+  r->aggFakeOutput = (outputFormatObj *) msSmallMalloc(sizeof(outputFormatObj));
   r->aggFakeOutput->bands = 1;
   r->aggFakeOutput->name = msStrdup("aggFakeOutput");
   r->aggFakeOutput->driver = msStrdup("AGG/PNG");
@@ -84,13 +119,18 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
   if(MS_RENDERER_PLUGIN(r->aggFakeOutput)) {
     msInitializeRendererVTable(r->aggFakeOutput);
   }
+  r->aggFakeOutput->formatoptions = (char **)msSmallMalloc(sizeof(char *));
+  r->aggFakeOutput->numformatoptions = 0;
   msSetOutputFormatOption(r->aggFakeOutput, "GAMMA", "0.00001");
   msSetOutputFormatOption(r->aggFakeOutput, "ALIAS", "1");
-  r->lookupTableData.table = (shapeData*) msSmallCalloc(1,sizeof(shapeData));
 
+  // r->aggImage = r->aggFakeOutput->vtable->createImage(width/r->utfresolution, height/r->utfresolution, r->aggFakeOutput, bg);
+  r->aggImage = r->aggFakeOutput->vtable->createImage(width, height, r->aggFakeOutput, bg);
 
-  image = r->aggFakeOutput->vtable->createImage(width, height, r->aggFakeOutput, bg);
-  r->aggRendererTool = (void*) image->img.plugin;
+  r->utflayer = NULL;
+
+  imageObj *image = NULL;
+  image = (imageObj *) msSmallMalloc(sizeof(imageObj));
   image->img.plugin = (void*) r;
 
   return image;
@@ -103,133 +143,83 @@ imageObj *createImageUTFGrid(int width, int height, outputFormatObj *format, col
 int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
   rasterBufferObj *rb;
-  rb = (rasterBufferObj *) calloc(1, sizeof (rasterBufferObj));
-  MS_CHECK_ALLOC(rb, sizeof (rasterBufferObj), MS_FAILURE);
-
-  UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
-  img->img.plugin = (void*) renderer->aggRendererTool;
-  renderer->aggFakeOutput->vtable->getRasterBufferHandle(img, rb);
-
   int row, col, i, waterPresence;
-  waterPresence = 0;
+  unsigned char *r,*g,*b;
+  char pixelid;
+  wchar_t *rowdata, *prowdata;
+  
+  UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
-  lookupTable data;
-  data = renderer->lookupTableData;
+  rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj *));
+  renderer->aggFakeOutput->vtable->getRasterBufferHandle(renderer->aggImage, rb);
+
+  rowdata = (wchar_t *)msSmallMalloc(sizeof(wchar_t *)*rb->width+1);
 
   fprintf(stdout, "{\"grid\":[");
-  /*
-   * Printing grid pixels.
-   *
-   */
+
+  waterPresence = 0;  
   for(row=0; row<rb->height; row++) {
-    unsigned char *r,*g,*b;
     r=rb->data.rgba.r+row*rb->data.rgba.row_step;
     g=rb->data.rgba.g+row*rb->data.rgba.row_step;
     b=rb->data.rgba.b+row*rb->data.rgba.row_step;
 
     if(row!=0)
       fprintf(stdout, ",");
-    fprintf(stdout, "\"");
-
+    
+    prowdata = rowdata;
     for(col=0; col<rb->width; col++) {
-      char pixelID = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
-      if(pixelID == 32) {
+      pixelid = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
+      if(pixelid == 32) {
         waterPresence = 1;
       } 
-      if(pixelID >= 34) {
-        pixelID++;
+      if(pixelid >= 34) {
+        pixelid++;
       }
-      if (pixelID >= 93) {
-         pixelID++;
+      if (pixelid >= 92) {
+         pixelid++;
       } 
-      fprintf(stdout, "%c", pixelID);
+
       r+=rb->data.rgba.pixel_step;
       g+=rb->data.rgba.pixel_step;
       b+=rb->data.rgba.pixel_step;
+
+      *prowdata = pixelid;
+      prowdata++;
     }
-    fprintf(stdout, "\"");
+    msConvertWideStringToUTF8 (rowdata, "UTF-8");
+
+    fprintf(stdout, "\"%ls\"", rowdata);
   }
 
   fprintf(stdout, "],\"keys\":[");
-  if(waterPresence==1) {
+
+  if(waterPresence==1) 
     fprintf(stdout, "\"\",");
-  }
-  for(i=0;i<renderer->lookupTableData.counter;i++) {  
+
+  for(i=0;i<renderer->data->counter;i++) {  
     if(i!=0)
       fprintf(stdout, ",");
-    fprintf(stdout, "\"%i\"", renderer->lookupTableData.table[i].shapeId);
+
+    if(renderer->useutfitem)
+      fprintf(stdout, "\"%s\"", renderer->data->table[i].itemvalue);
+    else
+      fprintf(stdout, "\"%i\"", renderer->data->table[i].serialid);
   }
+
   fprintf(stdout, "],\"data\":{");
 
-  for(i=0;i<renderer->lookupTableData.counter;i++) {
+  for(i=0;i<renderer->data->counter;i++) {
     if(i!=0)
       fprintf(stdout, ",");
-    fprintf(stdout, "\"%i\":{\"admin\":\"%s\"}", renderer->lookupTableData.table[i].shapeId, renderer->lookupTableData.table[i].values[0]);
+
+    if(renderer->useutfitem)
+      fprintf(stdout, "\"%s\":", renderer->data->table[i].itemvalue);
+    else
+      fprintf(stdout, "\"%i\":", renderer->data->table[i].serialid);
+    fprintf(stdout, "%s", renderer->data->table[i].datavalues);
   }
+
   fprintf(stdout, "}}");
-
-  img->img.plugin = (void*) renderer;
-  return MS_SUCCESS;
-}
-
-/*
- * Render polygon shapes with UTFGrid. Uses color bytes to carry table ID.
- *
- */
-int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
-{
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
-  img->img.plugin = (void*) r->aggRendererTool;
-  layerObj *utfLayer = (void*) img->format->vtable->renderer_data;
-  color->red = (r->lookupTableData.counter+1) & 0x000000ff;
-  color->green = (r->lookupTableData.counter+1) & 0x0000ff00 / 0x100;
-  color->blue = (r->lookupTableData.counter+1) & 0x00ff0000 / 0x10000;
-
-  r->lookupTableData.table = (shapeData*) realloc(r->lookupTableData.table,sizeof(*r->lookupTableData.table)*r->lookupTableData.counter+sizeof(shapeData));
-  if( r->lookupTableData.table == NULL ) {
-    msSetError( MS_MEMERR, NULL, "createImageUTFGrid()" );
-    return MS_FAILURE;
-  }
-  r->lookupTableData.table[r->lookupTableData.counter].values = (char **)msSmallCalloc(utfLayer->utfnumitems, sizeof(char *)*(utfLayer->utfnumitems));
-  int i;
-  for(i=0; i<utfLayer->utfnumitems; i++) {
-    r->lookupTableData.table[r->lookupTableData.counter].values[i] = msStrdup(p->values[i]);
-  }
-  r->lookupTableData.table[r->lookupTableData.counter].shapeId =  p->index;
-  r->lookupTableData.counter++;
-  r->aggFakeOutput->vtable->renderPolygon(img, p, color);
-  img->img.plugin = (void*) r;
-  return MS_SUCCESS;
-}
-
-/*
- * Return success to avoid error message.
- *
- */
-int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
-{
-  if(p->type == MS_SHAPE_POLYGON)
-    return MS_SUCCESS;
-  return MS_SUCCESS;
-}
-
-/*
- * Initialize raster buffer for AGG uses. Using generic type which are equivalent instead of AGG
- * specific types.
- *
- */
-int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, int mode)
-{
-  rb->type = MS_BUFFER_BYTE_RGBA;
-  rb->data.rgba.pixel_step = 1;
-  rb->data.rgba.row_step = rb->data.rgba.pixel_step * width;
-  rb->width = width;
-  rb->height = height;
-  int nBytes = rb->data.rgba.row_step * height;
-  rb->data.rgba.pixels = (unsigned char*)msSmallCalloc(nBytes,sizeof(unsigned char*));
-  rb->data.rgba.r = &(rb->data.rgba.pixels[2]);
-  rb->data.rgba.g = &(rb->data.rgba.pixels[1]);
-  rb->data.rgba.b = &(rb->data.rgba.pixels[0]);
 
   return MS_SUCCESS;
 }
@@ -241,18 +231,95 @@ int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, in
 int freeImageUTFGrid(imageObj *img)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
-  img->img.plugin = (void*) r->aggRendererTool;
-  r->aggFakeOutput->vtable->freeImage(img);
+
+  r->aggFakeOutput->vtable->freeImage(r->aggImage);
   r->aggFakeOutput->vtable->cleanup(MS_RENDERER_CACHE(r->aggFakeOutput->vtable));
-  free( r->aggFakeOutput->vtable);
+  msFree(r->aggFakeOutput->vtable);
   msFree(r->aggFakeOutput->name);
   msFree(r->aggFakeOutput->mimetype);
   msFree(r->aggFakeOutput->driver);
   msFree(r->aggFakeOutput->extension);
   msFreeCharArray(r->aggFakeOutput->formatoptions, r->aggFakeOutput->numformatoptions);
   msFree(r->aggFakeOutput);
-  free(r->lookupTableData.table);
-  free(r);
+
+  msFree(r);
+
+  freeTable(r->data);
+
+  return MS_SUCCESS;
+}
+
+/*
+ * Render polygon shapes with UTFGrid. Uses color bytes to carry table ID.
+ *
+ */
+int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
+{
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
+
+  color->red = (r->data->counter+1) & 0x000000ff;
+  color->green = (r->data->counter+1) & 0x0000ff00 / 0x100;
+  color->blue = (r->data->counter+1) & 0x00ff0000 / 0x10000;
+
+  growTable(r->data);
+
+  r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
+  if(r->useutfitem)
+    r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
+  r->data->table[r->data->counter].serialid = r->data->counter+1;
+  r->data->counter++;
+
+  r->aggFakeOutput->vtable->renderPolygon(r->aggImage, p, color);
+
+  return MS_SUCCESS;
+}
+
+/*
+ * Return success to avoid error message.
+ *
+ */
+int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
+{
+  if(p->type == MS_SHAPE_POLYGON)
+    return MS_SUCCESS;
+
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
+
+  stroke->color->red = (r->data->counter+1) & 0x000000ff;
+  stroke->color->green = (r->data->counter+1) & 0x0000ff00 / 0x100;
+  stroke->color->blue = (r->data->counter+1) & 0x00ff0000 / 0x10000;
+
+  growTable(r->data);
+
+  r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
+  if(r->useutfitem)
+    r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
+  r->data->table[r->data->counter].serialid = r->data->counter+1;
+  r->data->counter++;
+
+  r->aggFakeOutput->vtable->renderLine(r->aggImage, p, stroke);
+
+  return MS_SUCCESS;
+}
+
+/*
+ * Initialize raster buffer for AGG uses. Using generic type which are equivalent instead of AGG
+ * specific types.
+ *
+ */
+int utfgridInitializeRasterBuffer(rasterBufferObj *rb, int width, int height, int mode)
+{
+  rb->type = MS_BUFFER_BYTE_RGBA;
+  rb->data.rgba.pixel_step = 4;
+  rb->data.rgba.row_step = rb->data.rgba.pixel_step * width;
+  rb->width = width;
+  rb->height = height;
+  int nBytes = rb->data.rgba.row_step * height;
+  rb->data.rgba.pixels = (unsigned char*)msSmallCalloc(nBytes,sizeof(unsigned char*));
+  rb->data.rgba.r = &(rb->data.rgba.pixels[2]);
+  rb->data.rgba.g = &(rb->data.rgba.pixels[1]);
+  rb->data.rgba.b = &(rb->data.rgba.pixels[0]);
+
   return MS_SUCCESS;
 }
 
@@ -271,8 +338,22 @@ int getTruetypeTextBBoxUTFGrid(rendererVTableObj *renderer, char **fonts, int nu
  */
 int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
-  img->format->vtable->renderer_data = (void*) layer;
-  layer->refcount++;
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+
+  if(!r->layerwatch) {
+    r->utflayer = layer;
+    layer->refcount++;
+    if(r->utflayer->utfitem)
+      r->useutfitem = 1;
+
+    // img->width = map->width/r->utfresolution;
+    // img->height = map->height/r->utfresolution;
+
+    // img->resolution = map->resolution/r->utfresolution;
+    // img->resolutionfactor = map->resolution/map->defresolution/r->utfresolution;
+    r->layerwatch = 1;
+  }
+
 	return MS_SUCCESS;
 }
 
@@ -282,8 +363,13 @@ int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
  */
 int closeNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
 {
-  img->format->vtable->renderer_data = NULL;
-  layer->refcount--;
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+
+  if(r->layerwatch) {
+    r->utflayer = NULL;
+    layer->refcount--;
+  }
+
 	return MS_SUCCESS;
 }
 
@@ -302,27 +388,23 @@ int utfgridRenderGlyphs(imageObj *img, double x, double y, labelStyleObj *style,
  */
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
-  renderer->supports_transparent_layers = 0;
-  renderer->supports_pixel_buffer = 0;
-  renderer->use_imagecache = 0;
-  renderer->supports_clipping = 0;
-  renderer->supports_svg = 0;
   renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
 
   renderer->createImage=&createImageUTFGrid;
   renderer->saveImage=&saveImageUTFGrid;
   renderer->freeImage=&freeImageUTFGrid;
 
-  renderer->initializeRasterBuffer = utfgridInitializeRasterBuffer;
-
   renderer->renderPolygon=&renderPolygonUTFGrid;
   renderer->renderLine=&renderLineUTFGrid;
-  renderer->renderGlyphs = &utfgridRenderGlyphs;
+
+  renderer->initializeRasterBuffer = utfgridInitializeRasterBuffer;
 
   renderer->getTruetypeTextBBox=&getTruetypeTextBBoxUTFGrid;
 
   renderer->startLayer=&startNewLayerUTFGrid;
   renderer->endLayer=&closeNewLayerUTFGrid;
+
+  renderer->renderGlyphs = &utfgridRenderGlyphs;
 
   return MS_SUCCESS;
 }

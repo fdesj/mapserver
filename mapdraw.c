@@ -192,7 +192,7 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
 
     map->cellsize = msAdjustExtent(&(map->extent),map->width/utfRes,map->height/utfRes);
 
-    status = msCalculateScale(map->extent,map->units,map->width/utfRes,map->height/utfRes, map->resolution/utfRes, &map->scaledenom);
+    status = msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
     if(status != MS_SUCCESS) {
       msFreeImage(image);
       return(NULL);

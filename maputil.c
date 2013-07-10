@@ -605,7 +605,7 @@ int msShapeGetClass(layerObj *layer, mapObj *map, shapeObj *shape, int *classgro
   return(-1); /* no match */
 }
 
-static char *evalTextExpression(expressionObj *expr, shapeObj *shape)
+char *msEvalTextExpression(expressionObj *expr, shapeObj *shape)
 {
   char *result=NULL;
 
@@ -650,7 +650,7 @@ static char *evalTextExpression(expressionObj *expr, shapeObj *shape)
       status = yyparse(&p);
 
       if (status != 0) {
-        msSetError(MS_PARSEERR, "Failed to process text expression: %s", "evalTextExpression", expr->string);
+        msSetError(MS_PARSEERR, "Failed to process text expression: %s", "msEvalTextExpression", expr->string);
         return NULL;
       }
 
@@ -698,9 +698,9 @@ int msShapeGetAnnotation(layerObj *layer, shapeObj *shape)
     lbl->annotext = NULL;
 
     if(lbl->text.string) {
-      lbl->annotext = evalTextExpression(&(lbl->text), shape);
+      lbl->annotext = msEvalTextExpression(&(lbl->text), shape);
     } else if(layer->class[i]->text.string) {
-      lbl->annotext = evalTextExpression(&(layer->class[i]->text), shape);
+      lbl->annotext = msEvalTextExpression(&(layer->class[i]->text), shape);
     } else {
       if (shape->values && layer->labelitemindex >= 0 && shape->values[layer->labelitemindex] && strlen(shape->values[layer->labelitemindex]) )
         lbl->annotext = msStrdup(shape->values[layer->labelitemindex]);
