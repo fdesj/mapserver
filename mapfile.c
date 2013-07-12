@@ -4011,6 +4011,9 @@ int freeLayer(layerObj *layer)
     msFreeImage(layer->maskimage);
   }
 
+  freeExpression(&(layer->utfdata));
+  msFree(layer->utfitem);
+
   return MS_SUCCESS;
 }
 

@@ -81,6 +81,11 @@ int growTable(lookupTable *data)
 
 int freeTable(lookupTable *data)
 {
+  int i;
+  for(i=0;i<data->counter;i++) {
+    msFree(data->table[i].datavalues);
+    msFree(data->table[i].itemvalue);
+  }
   msFree(data->table);
   msFree(data);
   return MS_SUCCESS;
@@ -88,7 +93,8 @@ int freeTable(lookupTable *data)
 
 int addtotable(UTFGridRenderer *r, shapeObj *p, colorObj *color)
 {
-  for(int i=0; i<r->data->counter; i++) {
+  int i;
+  for(i=0; i<r->data->counter; i++) {
     if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
       color->red = r->data->table[i].color.red;
       color->green = r->data->table[i].color.green;
@@ -193,7 +199,7 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 
     if(row!=0)
       fprintf(stdout, ",");
-    
+    fprintf(stdout,"\"");
     prowdata = rowdata;
     for(col=0; col<rb->width; col++) {
         pixelid = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
@@ -211,13 +217,14 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       r+=rb->data.rgba.pixel_step;
       g+=rb->data.rgba.pixel_step;
       b+=rb->data.rgba.pixel_step;
-
+      fprintf(stdout, "%c", pixelid);
       *prowdata = pixelid;
       prowdata++;
     }
     msConvertWideStringToUTF8 (rowdata, "UTF-8");
 
-    fprintf(stdout, "\"%ls\"", rowdata);
+    fprintf(stdout, "%ls", rowdata);
+    fprintf(stdout, "\"");
   }
 
   fprintf(stdout, "],\"keys\":[");
@@ -263,6 +270,7 @@ int freeImageUTFGrid(imageObj *img)
 
   r->aggFakeOutput->vtable->freeImage(r->aggImage);
   r->aggFakeOutput->vtable->cleanup(MS_RENDERER_CACHE(r->aggFakeOutput->vtable));
+  msFree(r->aggImage);
   msFree(r->aggFakeOutput->vtable);
   msFree(r->aggFakeOutput->name);
   msFree(r->aggFakeOutput->mimetype);
@@ -271,9 +279,9 @@ int freeImageUTFGrid(imageObj *img)
   msFreeCharArray(r->aggFakeOutput->formatoptions, r->aggFakeOutput->numformatoptions);
   msFree(r->aggFakeOutput);
 
-  msFree(r);
-
   freeTable(r->data);
+
+  msFree(r);
 
   return MS_SUCCESS;
 }
