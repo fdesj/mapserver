@@ -32,6 +32,7 @@
 typedef struct shapeData {
   char *datavalues;
   char *itemvalue;
+  colorObj color;
   int serialid;
 }
 shapeData;
@@ -80,8 +81,35 @@ int growTable(lookupTable *data)
 
 int freeTable(lookupTable *data)
 {
-  free(data->table);
-  free(data);
+  msFree(data->table);
+  msFree(data);
+  return MS_SUCCESS;
+}
+
+int addtotable(UTFGridRenderer *r, shapeObj *p, colorObj *color)
+{
+  for(int i=0; i<r->data->counter; i++) {
+    if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
+      color->red = r->data->table[i].color.red;
+      color->green = r->data->table[i].color.green;
+      color->blue = r->data->table[i].color.blue;
+
+      return MS_SUCCESS;
+    }
+  }
+  color->red = (r->data->counter+1) & 0x000000ff;
+  color->green = (r->data->counter+1) & 0x0000ff00 / 0x100;
+  color->blue = (r->data->counter+1) & 0x00ff0000 / 0x10000;
+
+  r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
+
+  if(r->useutfitem)
+    r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
+
+  r->data->table[r->data->counter].serialid = r->data->counter+1;
+
+  r->data->counter++;
+
   return MS_SUCCESS;
 }
 
@@ -144,16 +172,16 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 {
   rasterBufferObj *rb;
   int row, col, i, waterPresence;
-  unsigned char *r,*g,*b;
-  char pixelid;
-  wchar_t *rowdata, *prowdata;
+  unsigned short value;
+  unsigned char *r,*g,*b,pixelid;
+  int *rowdata, *prowdata;
   
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
   rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj *));
   renderer->aggFakeOutput->vtable->getRasterBufferHandle(renderer->aggImage, rb);
 
-  rowdata = (wchar_t *)msSmallMalloc(sizeof(wchar_t *)*rb->width+1);
+  rowdata = (int *)msSmallMalloc(sizeof(int *)*rb->width+1);
 
   fprintf(stdout, "{\"grid\":[");
 
@@ -168,16 +196,17 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
     
     prowdata = rowdata;
     for(col=0; col<rb->width; col++) {
-      pixelid = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
+        pixelid = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
+
       if(pixelid == 32) {
         waterPresence = 1;
       } 
       if(pixelid >= 34) {
-        pixelid++;
+        pixelid = pixelid +1;
       }
       if (pixelid >= 92) {
-         pixelid++;
-      } 
+        pixelid = pixelid +1;
+      }
 
       r+=rb->data.rgba.pixel_step;
       g+=rb->data.rgba.pixel_step;
@@ -257,17 +286,9 @@ int renderPolygonUTFGrid(imageObj *img, shapeObj *p, colorObj *color)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);  
 
-  color->red = (r->data->counter+1) & 0x000000ff;
-  color->green = (r->data->counter+1) & 0x0000ff00 / 0x100;
-  color->blue = (r->data->counter+1) & 0x00ff0000 / 0x10000;
-
   growTable(r->data);
 
-  r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
-  if(r->useutfitem)
-    r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
-  r->data->table[r->data->counter].serialid = r->data->counter+1;
-  r->data->counter++;
+  addtotable(r, p, color);
 
   r->aggFakeOutput->vtable->renderPolygon(r->aggImage, p, color);
 
@@ -283,21 +304,11 @@ int renderLineUTFGrid(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
   if(p->type == MS_SHAPE_POLYGON)
     return MS_SUCCESS;
 
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
-
-  stroke->color->red = (r->data->counter+1) & 0x000000ff;
-  stroke->color->green = (r->data->counter+1) & 0x0000ff00 / 0x100;
-  stroke->color->blue = (r->data->counter+1) & 0x00ff0000 / 0x10000;
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   growTable(r->data);
 
-  r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
-  if(r->useutfitem)
-    r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
-  r->data->table[r->data->counter].serialid = r->data->counter+1;
-  r->data->counter++;
-
-  r->aggFakeOutput->vtable->renderLine(r->aggImage, p, stroke);
+  addtotable(r, p, stroke->color);
 
   return MS_SUCCESS;
 }
@@ -345,12 +356,7 @@ int startNewLayerUTFGrid(imageObj *img, mapObj *map, layerObj *layer)
     layer->refcount++;
     if(r->utflayer->utfitem)
       r->useutfitem = 1;
-
-    // img->width = map->width/r->utfresolution;
-    // img->height = map->height/r->utfresolution;
-
-    // img->resolution = map->resolution/r->utfresolution;
-    // img->resolutionfactor = map->resolution/map->defresolution/r->utfresolution;
+    
     r->layerwatch = 1;
   }
 
