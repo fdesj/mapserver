@@ -184,7 +184,7 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
-  rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj *));
+  rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj));
   renderer->aggFakeOutput->vtable->getRasterBufferHandle(renderer->aggImage, rb);
 
   rowdata = (int *)msSmallMalloc(sizeof(int *)*rb->width+1);
@@ -226,6 +226,9 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
     fprintf(stdout, "%ls", rowdata);
     fprintf(stdout, "\"");
   }
+
+  msFree(rowdata);
+  msFree(rb);
 
   fprintf(stdout, "],\"keys\":[");
 
