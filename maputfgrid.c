@@ -178,16 +178,16 @@ int saveImageUTFGrid(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 {
   rasterBufferObj *rb;
   int row, col, i, waterPresence;
-  unsigned short value;
-  unsigned char *r,*g,*b,pixelid;
+  unsigned char *r,*g,*b;
   int *rowdata, *prowdata;
+  unsigned char pixelid;
   
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
   rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj));
   renderer->aggFakeOutput->vtable->getRasterBufferHandle(renderer->aggImage, rb);
 
-  rowdata = (int *)msSmallMalloc(sizeof(int *)*rb->width+1);
+  rowdata = (int *)msSmallCalloc(rb->width+1,sizeof(int));
 
   fprintf(stdout, "{\"grid\":[");
 
