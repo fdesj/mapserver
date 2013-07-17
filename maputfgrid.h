@@ -161,7 +161,8 @@ struct utfpix32
  *
  */
 
-template<class ColorT> struct blender_utf
+template<class ColorT> 
+struct blender_utf
 {
   typedef ColorT color_type;
   typedef typename color_type::value_type value_type;
@@ -361,29 +362,6 @@ class pixfmt_alpha_blend_utf
         p += Step;
       }
       while(--len);
-      // We ignore alpha since grid_renderer is a binary renderer
-      /*if (c.a)
-      {
-        value_type* p = (value_type*)
-        m_rbuf->row_ptr(x, y, len) + x * Step + Offset;
-
-        calc_type alpha = (calc_type(c.a) * (cover + 1)) >> 8;
-        if(alpha == base_mask) {
-          do
-          {
-            *p = c.v;
-            p += Step;
-          }
-          while(--len);
-        } else {
-          do
-          {
-            Blender::blend_pix(p, c.v, alpha, cover);
-            p += Step;
-          }
-          while(--len);
-        }
-      }*/
     }
 
     void blend_vline(int x, int y, unsigned len, const color_type& c, mapserver::int8u cover)

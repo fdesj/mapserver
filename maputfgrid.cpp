@@ -47,6 +47,9 @@ typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 
 static utfpix32 UTF_WATER = utfpix32(0, 0);
 
+#define utfitem(c) utfpix32(c, 0)
+
+
 struct shapeData 
 {
   char *datavalues;
@@ -76,6 +79,7 @@ struct UTFGridRenderer {
   renderer_base m_renderer_base;
   rasterizer_scanline m_rasterizer;
   renderer_scanline m_renderer_scanline;
+  mapserver::scanline_bin sl_utf;
 };
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
@@ -111,7 +115,7 @@ int freeTable(lookupTable *data)
   return MS_SUCCESS;
 }
 
-int addtotable(UTFGridRenderer *r, shapeObj *p, band_type &value)
+int addToTable(UTFGridRenderer *r, shapeObj *p, band_type &value)
 {
   int i;
   for(i=0; i<r->data->counter; i++) {
@@ -157,11 +161,12 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->m_renderer_base.attach(r->m_pixel_format);
   r->m_renderer_scanline.attach(r->m_renderer_base);
   r->m_renderer_base.clear(UTF_WATER);
+  r->m_rasterizer.gamma(mapserver::gamma_none());
 
   r->utflayer = NULL;
 
   imageObj *image = NULL;
-  image = (imageObj *) malloc(sizeof(imageObj));
+  image = (imageObj *) msSmallCalloc(1,sizeof(imageObj));
   image->img.plugin = (void*) r;
 
   return image;
@@ -182,89 +187,75 @@ int utfgridFreeImage(imageObj *img)
 
 int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
-  // rasterBufferObj *rb;
-  // int row, col, i, waterPresence;
-  // unsigned char *r,*g,*b;
-  // int *rowdata, *prowdata;
-  // unsigned char pixelid;
-  
-  // UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
+  int row, col, i, waterPresence;
+  wchar_t *rowdata, *prowdata;
+  uint32_t pixelid;
+  char *utf_string;
+ 
+  UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
-  // rb = (rasterBufferObj *)msSmallMalloc(sizeof(rasterBufferObj));
-  // renderer->aggFakeOutput->vtable->getRasterBufferHandle(renderer->aggImage, rb);
+  rowdata = (wchar_t *)msSmallCalloc(img->width+1,sizeof(wchar_t));
 
-  // rowdata = (int *)msSmallCalloc(rb->width+1,sizeof(int));
+  printf("{\"grid\":[");
 
-  // fprintf(stdout, "{\"grid\":[");
+  waterPresence = 0;  
+  for(row=0; row<img->height; row++) {
 
-  // waterPresence = 0;  
-  // for(row=0; row<rb->height; row++) {
-  //   r=rb->data.rgba.r+row*rb->data.rgba.row_step;
-  //   g=rb->data.rgba.g+row*rb->data.rgba.row_step;
-  //   b=rb->data.rgba.b+row*rb->data.rgba.row_step;
+    if(row!=0)
+      printf(",");
+    printf("\"");
+    prowdata = rowdata;
+    for(col=0; col<img->width; col++) {
+        pixelid = renderer->buffer[(row*img->width)+col]+32;
 
-  //   if(row!=0)
-  //     fprintf(stdout, ",");
-  //   fprintf(stdout,"\"");
-  //   prowdata = rowdata;
-  //   for(col=0; col<rb->width; col++) {
-  //       pixelid = (*r + (*g)*0x100 + (*b)*0x10000) + 32;
+      if(pixelid == 32) {
+        waterPresence = 1;
+      } 
+      if(pixelid >= 34) {
+        pixelid = pixelid +1;
+      }
+      if (pixelid >= 92) {
+        pixelid = pixelid +1;
+      }
+      *prowdata = pixelid;
+      prowdata++;
+    }
+    utf_string = msConvertWideStringToUTF8 (rowdata, "wchar_t");
+    printf("%s", utf_string);
+    printf("\"");
+  }
 
-  //     if(pixelid == 32) {
-  //       waterPresence = 1;
-  //     } 
-  //     if(pixelid >= 34) {
-  //       pixelid = pixelid +1;
-  //     }
-  //     if (pixelid >= 92) {
-  //       pixelid = pixelid +1;
-  //     }
+  msFree(rowdata);
 
-  //     r+=rb->data.rgba.pixel_step;
-  //     g+=rb->data.rgba.pixel_step;
-  //     b+=rb->data.rgba.pixel_step;
-  //     fprintf(stdout, "%c", pixelid);
-  //     *prowdata = pixelid;
-  //     prowdata++;
-  //   }
-  //   msConvertWideStringToUTF8 (rowdata, "UTF-8");
+  printf("],\"keys\":[");
 
-  //   fprintf(stdout, "%ls", rowdata);
-  //   fprintf(stdout, "\"");
-  // }
+  if(waterPresence==1) 
+    printf("\"\",");
 
-  // msFree(rowdata);
-  // msFree(rb);
+  for(i=0;i<renderer->data->counter;i++) {  
+    if(i!=0)
+      printf(",");
 
-  // fprintf(stdout, "],\"keys\":[");
+    if(renderer->useutfitem)
+      printf("\"%s\"", renderer->data->table[i].itemvalue);
+    else
+      printf("\"%i\"", renderer->data->table[i].serialid);
+  }
 
-  // if(waterPresence==1) 
-  //   fprintf(stdout, "\"\",");
+  fprintf(stdout, "],\"data\":{");
 
-  // for(i=0;i<renderer->data->counter;i++) {  
-  //   if(i!=0)
-  //     fprintf(stdout, ",");
+  for(i=0;i<renderer->data->counter;i++) {
+    if(i!=0)
+      printf(",");
 
-  //   if(renderer->useutfitem)
-  //     fprintf(stdout, "\"%s\"", renderer->data->table[i].itemvalue);
-  //   else
-  //     fprintf(stdout, "\"%i\"", renderer->data->table[i].serialid);
-  // }
+    if(renderer->useutfitem)
+      printf("\"%s\":", renderer->data->table[i].itemvalue);
+    else
+      printf("\"%i\":", renderer->data->table[i].serialid);
+    printf("%s", renderer->data->table[i].datavalues);
+  }
 
-  // fprintf(stdout, "],\"data\":{");
-
-  // for(i=0;i<renderer->data->counter;i++) {
-  //   if(i!=0)
-  //     fprintf(stdout, ",");
-
-  //   if(renderer->useutfitem)
-  //     fprintf(stdout, "\"%s\":", renderer->data->table[i].itemvalue);
-  //   else
-  //     fprintf(stdout, "\"%i\":", renderer->data->table[i].serialid);
-  //   fprintf(stdout, "%s", renderer->data->table[i].datavalues);
-  // }
-
-  // fprintf(stdout, "}}");
+  printf("}}");
 
   return MS_SUCCESS;
 }
@@ -314,39 +305,97 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *p, colorObj *color)
 
   growTable(r->data);
 
-  addtotable(r, p, value);
+  addToTable(r, p, value);
+
+  polygon_adaptor polygons(p);
+
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(polygons);
+  r->m_renderer_scanline.color(utfitem(value));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
-
-// int agg2RenderPolygon(imageObj *img, shapeObj *p, colorObj * color)
-// {
-//   AGG2Renderer *r = AGG_RENDERER(img);
-//   polygon_adaptor polygons(p);
-//   r->m_rasterizer_aa_gamma.reset();
-//   r->m_rasterizer_aa_gamma.filling_rule(mapserver::fill_even_odd);
-//   r->m_rasterizer_aa_gamma.add_path(polygons);
-//   r->m_renderer_scanline.color(aggColor(color));
-//   mapserver::render_scanlines(r->m_rasterizer_aa_gamma, r->sl_poly, r->m_renderer_scanline);
-//   return MS_SUCCESS;
-// }
 
 int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 {
-  // if(p->type == MS_SHAPE_POLYGON)
-  //   return MS_SUCCESS;
+  if(p->type == MS_SHAPE_POLYGON)
+    return MS_SUCCESS;
 
-  // UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  band_type value;
 
-  // growTable(r->data);
+  growTable(r->data);
 
-  // addtotable(r, p, stroke->color);
+  addToTable(r, p, value);
+
+  line_adaptor lines = line_adaptor(p);
 
   return MS_SUCCESS;
 }
 
+//   r->m_rasterizer_aa.reset();
+//   r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
+//   r->m_renderer_scanline.color(aggColor(style->color));
+
+//   if (style->patternlength <= 0) {
+//     if(!r->stroke) {
+//       r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
+//     } else {
+//       r->stroke->attach(lines);
+//     }
+//     r->stroke->width(style->width);
+//     if(style->width>1) {
+//       applyCJC(*r->stroke, style->linecap, style->linejoin);
+//     } else {
+//       r->stroke->inner_join(mapserver::inner_bevel);
+//       r->stroke->line_join(mapserver::bevel_join);
+//     }
+//     r->m_rasterizer_aa.add_path(*r->stroke);
+//   } else {
+//     if(!r->dash) {
+//       r->dash = new mapserver::conv_dash<line_adaptor>(lines);
+//     } else {
+//       r->dash->remove_all_dashes();
+//       r->dash->dash_start(0.0);
+//       r->dash->attach(lines);
+//     }
+//     if(!r->stroke_dash) {
+//       r->stroke_dash = new mapserver::conv_stroke<mapserver::conv_dash<line_adaptor> > (*r->dash);
+//     } else {
+//       r->stroke_dash->attach(*r->dash);
+//     }
+//     int patt_length = 0;
+//     for (int i = 0; i < style->patternlength; i += 2) {
+//       if (i < style->patternlength - 1) {
+//         r->dash->add_dash(MS_MAX(1,MS_NINT(style->pattern[i])),
+//                       MS_MAX(1,MS_NINT(style->pattern[i + 1])));
+//         if(style->patternoffset) {
+//           patt_length += MS_MAX(1,MS_NINT(style->pattern[i])) +
+//                          MS_MAX(1,MS_NINT(style->pattern[i + 1]));
+//         }
+//       }
+//     }
+//     if(style->patternoffset > 0) {
+//       r->dash->dash_start(patt_length - style->patternoffset);
+//     }
+//     r->stroke_dash->width(style->width);
+//     if(style->width>1) {
+//       applyCJC(*r->stroke_dash, style->linecap, style->linejoin);
+//     } else {
+//       r->stroke_dash->inner_join(mapserver::inner_bevel);
+//       r->stroke_dash->line_join(mapserver::bevel_join);
+//     }
+//     r->m_rasterizer_aa.add_path(*r->stroke_dash);
+//   }
+//   mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_line, r->m_renderer_scanline);
+//   return MS_SUCCESS;
+
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
+  renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
+
   renderer->createImage = &utfgridCreateImage;
   renderer->freeImage = &utfgridFreeImage;
   renderer->saveImage = &utfgridSaveImage;
