@@ -1488,8 +1488,14 @@ int msCGIDispatchImageRequest(mapservObj *mapserv)
     const char *attachment = msGetOutputFormatOption(mapserv->map->outputformat, "ATTACHMENT", NULL );
     if(attachment)
       msIO_setHeader("Content-disposition","attachment; filename=%s", attachment);
-    msIO_setHeader("Content-Type",MS_IMAGE_MIME_TYPE(mapserv->map->outputformat));
-    msIO_sendHeaders();
+
+    if(!strcmp(MS_IMAGE_MIME_TYPE(mapserv->map->outputformat), "application/json")) {
+      msIO_setHeader("Content-Type","application/json; charset=utf-8");
+      msIO_sendHeaders();
+    } else {
+      msIO_setHeader("Content-Type",MS_IMAGE_MIME_TYPE(mapserv->map->outputformat));
+      msIO_sendHeaders();
+    }
   }
 
   if( mapserv->Mode == MAP || mapserv->Mode == TILE )

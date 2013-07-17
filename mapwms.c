@@ -3717,8 +3717,13 @@ int msWMSGetMap(mapObj *map, int nVersion, char **names, char **values, int nume
   }
 
   if (strcasecmp(map->imagetype, "application/openlayers")!=0) {
-    msIO_setHeader("Content-Type",MS_IMAGE_MIME_TYPE(map->outputformat));
-    msIO_sendHeaders();
+    if(!strcmp(MS_IMAGE_MIME_TYPE(map->outputformat), "application/json")) {
+      msIO_setHeader("Content-Type","application/json; charset=utf-8");
+      msIO_sendHeaders();
+    } else {
+      msIO_setHeader("Content-Type",MS_IMAGE_MIME_TYPE(map->outputformat));
+      msIO_sendHeaders();
+    }
     if (msSaveImage(map, img, NULL) != MS_SUCCESS) {
       msFreeImage(img);
       return msWMSException(map, nVersion, NULL, wms_exception_format);
