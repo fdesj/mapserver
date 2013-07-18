@@ -37,7 +37,7 @@
 #include "renderers/agg/include/agg_renderer_scanline.h"
 #include "renderers/agg/include/agg_scanline_bin.h"
 
-typedef mapserver::int32 band_type;
+typedef mapserver::int32u band_type;
 typedef mapserver::row_ptr_cache<band_type> rendering_buffer;
 typedef blender_utf<utfpix32> blender_utf32;
 typedef pixfmt_alpha_blend_utf<blender_utf32, rendering_buffer> pixfmt_utf32;
@@ -77,12 +77,44 @@ struct UTFGridRenderer {
   rendering_buffer m_rendering_buffer;
   pixfmt_utf32 m_pixel_format;
   renderer_base m_renderer_base;
-  rasterizer_scanline m_rasterizer;
+  rasterizer_scanline m_rasterizer_scanline;
   renderer_scanline m_renderer_scanline;
   mapserver::scanline_bin sl_utf;
 };
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
+
+unsigned int encodeToUTF8(unsigned int encode)
+{
+  if(encode < 0x80)
+    return encode;
+  else if(encode < 0x800) {
+    unsigned int lowBits, highBits;
+    lowBits = encode % 0x40 + 0x80;
+    highBits = encode - encode % 0x40;
+    highBits = (highBits << 2) + 0xC000;
+    return lowBits+highBits;
+  }
+  return -1;
+}
+
+char * outputUTF8char(unsigned int split)
+{
+  char * output;
+  if(split < 0x80) {
+    output = (char *)msSmallCalloc(1,sizeof(char));
+    *output = split & 0xFF;
+    return output;
+  }
+  else if(split < 0x800) {
+    output = (char *)msSmallCalloc(2,sizeof(char));
+    *output = split & 0xFF;
+    output++;
+    *output = split & 0xFF00;
+    return output;
+  }
+  return NULL;
+}
 
 lookupTable *initTable()
 {
@@ -152,6 +184,8 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
 
   r->layerwatch = 0;
 
+  r->renderlayer = 0;
+
   r->useutfitem = 0;
 
   r->buffer = (band_type*)msSmallMalloc(width * height * sizeof(band_type));
@@ -161,7 +195,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->m_renderer_base.attach(r->m_pixel_format);
   r->m_renderer_scanline.attach(r->m_renderer_base);
   r->m_renderer_base.clear(UTF_WATER);
-  r->m_rasterizer.gamma(mapserver::gamma_none());
+  r->m_rasterizer_scanline.gamma(mapserver::gamma_none());
 
   r->utflayer = NULL;
 
@@ -189,7 +223,7 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 {
   int row, col, i, waterPresence;
   wchar_t *rowdata, *prowdata;
-  uint32_t pixelid;
+  band_type pixelid;
   char *utf_string;
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
@@ -264,13 +298,22 @@ int utfgridStartLayer(imageObj *img, mapObj *map, layerObj *layer)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  if(!r->layerwatch) {
-    r->utflayer = layer;
-    layer->refcount++;
-    if(r->utflayer->utfitem)
-      r->useutfitem = 1;
+  if(&layer->utfdata!=NULL) {
+
+    if(!r->layerwatch) {
+      r->renderlayer = 1;
+      r->utflayer = layer;
+      layer->refcount++;
+
+      if(r->utflayer->utfitem)
+        r->useutfitem = 1;
     
-    r->layerwatch = 1;
+      r->layerwatch = 1;
+    }
+    else {
+      msSetError(MS_MISCERR, "MapServer does not support multiple UTFGrid layers", "utfgridStartLayer()");
+      return MS_FAILURE;
+    }
   }
 
   return MS_SUCCESS;
@@ -280,9 +323,10 @@ int utfgridEndLayer(imageObj *img, mapObj *map, layerObj *layer)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  if(r->layerwatch) {
+  if(r->renderlayer) {
     r->utflayer = NULL;
     layer->refcount--;
+    r->renderlayer = 0;
   }
 
   return MS_SUCCESS;
@@ -301,27 +345,29 @@ int utfgridRenderGlyphs(imageObj *img, double x, double y, labelStyleObj *style,
 int utfgridRenderPolygon(imageObj *img, shapeObj *p, colorObj *color)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);  
-  band_type value;
+  band_type value, test;
 
   growTable(r->data);
 
   addToTable(r, p, value);
 
+  value = encodeToUTF8(value);
+
   polygon_adaptor polygons(p);
 
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer.add_path(polygons);
+  r->m_rasterizer_scanline.reset();
+  r->m_rasterizer_scanline.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer_scanline.add_path(polygons);
   r->m_renderer_scanline.color(utfitem(value));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  mapserver::render_scanlines(r->m_rasterizer_scanline, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
 
 int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 {
-  if(p->type == MS_SHAPE_POLYGON)
-    return MS_SUCCESS;
+  // if(p->type == MS_SHAPE_POLYGON)
+  //   return MS_SUCCESS;
 
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
   band_type value;
@@ -335,11 +381,7 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
   return MS_SUCCESS;
 }
 
-//   r->m_rasterizer_aa.reset();
-//   r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
-//   r->m_renderer_scanline.color(aggColor(style->color));
-
-//   if (style->patternlength <= 0) {
+// if (style->patternlength <= 0) {
 //     if(!r->stroke) {
 //       r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
 //     } else {
@@ -353,44 +395,31 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 //       r->stroke->line_join(mapserver::bevel_join);
 //     }
 //     r->m_rasterizer_aa.add_path(*r->stroke);
-//   } else {
-//     if(!r->dash) {
-//       r->dash = new mapserver::conv_dash<line_adaptor>(lines);
-//     } else {
-//       r->dash->remove_all_dashes();
-//       r->dash->dash_start(0.0);
-//       r->dash->attach(lines);
-//     }
-//     if(!r->stroke_dash) {
-//       r->stroke_dash = new mapserver::conv_stroke<mapserver::conv_dash<line_adaptor> > (*r->dash);
-//     } else {
-//       r->stroke_dash->attach(*r->dash);
-//     }
-//     int patt_length = 0;
-//     for (int i = 0; i < style->patternlength; i += 2) {
-//       if (i < style->patternlength - 1) {
-//         r->dash->add_dash(MS_MAX(1,MS_NINT(style->pattern[i])),
-//                       MS_MAX(1,MS_NINT(style->pattern[i + 1])));
-//         if(style->patternoffset) {
-//           patt_length += MS_MAX(1,MS_NINT(style->pattern[i])) +
-//                          MS_MAX(1,MS_NINT(style->pattern[i + 1]));
-//         }
-//       }
-//     }
-//     if(style->patternoffset > 0) {
-//       r->dash->dash_start(patt_length - style->patternoffset);
-//     }
-//     r->stroke_dash->width(style->width);
-//     if(style->width>1) {
-//       applyCJC(*r->stroke_dash, style->linecap, style->linejoin);
-//     } else {
-//       r->stroke_dash->inner_join(mapserver::inner_bevel);
-//       r->stroke_dash->line_join(mapserver::bevel_join);
-//     }
-//     r->m_rasterizer_aa.add_path(*r->stroke_dash);
 //   }
-//   mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_line, r->m_renderer_scanline);
-//   return MS_SUCCESS;
+
+// switch (joins) {
+//     case MS_CJC_ROUND:
+//       stroke.line_join(mapserver::round_join);
+//       break;
+//     case MS_CJC_MITER:
+//       stroke.line_join(mapserver::miter_join);
+//       break;
+//     case MS_CJC_BEVEL:
+//     case MS_CJC_NONE:
+//       stroke.line_join(mapserver::bevel_join);
+//       break;
+//   }
+//   switch (caps) {
+//     case MS_CJC_BUTT:
+//     case MS_CJC_NONE:
+//       stroke.line_cap(mapserver::butt_cap);
+//       break;
+//     case MS_CJC_ROUND:
+//       stroke.line_cap(mapserver::round_cap);
+//       break;
+//     case MS_CJC_SQUARE:
+//       stroke.line_cap(mapserver::square_cap);
+//       break;
 
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {

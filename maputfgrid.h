@@ -35,7 +35,7 @@
 
 struct utfpix32
 {
-  typedef mapserver::int32 value_type;
+  typedef mapserver::int32u value_type;
   typedef mapserver::int64u calc_type;
   typedef mapserver::int64  long_type;
 
