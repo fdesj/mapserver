@@ -228,8 +228,10 @@ int agg2RenderLine(imageObj *img, shapeObj *p, strokeStyleObj *style)
   line_adaptor lines = line_adaptor(p);
 
 #ifdef AGG_ALIASED_ENABLED
+  r->m_rasterizer_primitives.reset();
   r->m_renderer_primitives.line_color(aggColor(style->color));
   r->m_rasterizer_primitives.add_path(lines);
+  return MS_SUCCESS;
 #endif
 
   r->m_rasterizer_aa.reset();
@@ -853,7 +855,7 @@ imageObj *agg2CreateImage(int width, int height, outputFormatObj *format, colorO
 
 int agg2SaveImage(imageObj *img, mapObj* map, FILE *fp, outputFormatObj * format)
 {
-  msSetError(MS_MISCERR, "AGG2 does not support direct image saving", "agg2SaveImage()");
+  
 
   return MS_FAILURE;
 }
