@@ -36,6 +36,7 @@
 #include "renderers/agg/include/agg_basics.h"
 #include "renderers/agg/include/agg_renderer_scanline.h"
 #include "renderers/agg/include/agg_scanline_bin.h"
+#include "renderers/agg/include/agg_conv_stroke.h"
 
 typedef mapserver::int32u band_type;
 typedef mapserver::row_ptr_cache<band_type> rendering_buffer;
@@ -45,7 +46,7 @@ typedef mapserver::rasterizer_scanline_aa<> rasterizer_scanline;
 typedef mapserver::renderer_base<pixfmt_utf32> renderer_base;
 typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 
-static utfpix32 UTF_WATER = utfpix32(0, 0);
+static utfpix32 UTF_WATER = utfpix32(32, 0);
 
 #define utfitem(c) utfpix32(c, 0)
 
@@ -77,9 +78,10 @@ struct UTFGridRenderer {
   rendering_buffer m_rendering_buffer;
   pixfmt_utf32 m_pixel_format;
   renderer_base m_renderer_base;
-  rasterizer_scanline m_rasterizer_scanline;
+  rasterizer_scanline m_rasterizer;
   renderer_scanline m_renderer_scanline;
   mapserver::scanline_bin sl_utf;
+  mapserver::conv_stroke<line_adaptor> stroke;
 };
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
@@ -185,7 +187,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->m_renderer_base.attach(r->m_pixel_format);
   r->m_renderer_scanline.attach(r->m_renderer_base);
   r->m_renderer_base.clear(UTF_WATER);
-  r->m_rasterizer_scanline.gamma(mapserver::gamma_none());
+  r->m_rasterizer.gamma(mapserver::gamma_none());
 
   r->utflayer = NULL;
 
@@ -232,11 +234,11 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       } 
 
       if(pixelid<0x80) {
-        char s[]= {(pixelid & 0xFF)};
+        unsigned char s[]= {(pixelid & 0xFF)};
         printf("%s", s);
       }
       else {
-        char s[]= {(pixelid & 0xFF00),(pixelid & 0xFF)};
+        unsigned char s[]= {(pixelid & 0xFF00),(pixelid & 0xFF)};
         printf("%s", s);
       }
     }
@@ -338,19 +340,19 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *p, colorObj *color)
 
   polygon_adaptor polygons(p);
 
-  r->m_rasterizer_scanline.reset();
-  r->m_rasterizer_scanline.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer_scanline.add_path(polygons);
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(polygons);
   r->m_renderer_scanline.color(utfitem(value));
-  mapserver::render_scanlines(r->m_rasterizer_scanline, r->sl_utf, r->m_renderer_scanline);
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
 
 int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 {
-  // if(p->type == MS_SHAPE_POLYGON)
-  //   return MS_SUCCESS;
+  if(p->type == MS_SHAPE_POLYGON)
+    return MS_SUCCESS;
 
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
   band_type value;
@@ -359,50 +361,20 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 
   addToTable(r, p, value);
 
+  encodeToUTF8(value);
+
   line_adaptor lines = line_adaptor(p);
+
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_non_zero);
+  r->stroke.attach(lines);
+  r->stroke.width(stroke->width);
+  r->m_rasterizer.add_path(r->stroke);
+  r->m_renderer_scanline.color(utfitem(value));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
-
-// if (style->patternlength <= 0) {
-//     if(!r->stroke) {
-//       r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
-//     } else {
-//       r->stroke->attach(lines);
-//     }
-//     r->stroke->width(style->width);
-//     if(style->width>1) {
-//       applyCJC(*r->stroke, style->linecap, style->linejoin);
-//     } else {
-//       r->stroke->inner_join(mapserver::inner_bevel);
-//       r->stroke->line_join(mapserver::bevel_join);
-//     }
-//     r->m_rasterizer_aa.add_path(*r->stroke);
-//   }
-
-// switch (joins) {
-//     case MS_CJC_ROUND:
-//       stroke.line_join(mapserver::round_join);
-//       break;
-//     case MS_CJC_MITER:
-//       stroke.line_join(mapserver::miter_join);
-//       break;
-//     case MS_CJC_BEVEL:
-//     case MS_CJC_NONE:
-//       stroke.line_join(mapserver::bevel_join);
-//       break;
-//   }
-//   switch (caps) {
-//     case MS_CJC_BUTT:
-//     case MS_CJC_NONE:
-//       stroke.line_cap(mapserver::butt_cap);
-//       break;
-//     case MS_CJC_ROUND:
-//       stroke.line_cap(mapserver::round_cap);
-//       break;
-//     case MS_CJC_SQUARE:
-//       stroke.line_cap(mapserver::square_cap);
-//       break;
 
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
