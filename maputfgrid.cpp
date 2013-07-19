@@ -106,24 +106,6 @@ int encodeToUTF8(unsigned int &encode)
   return MS_SUCCESS;
 }
 
-char * outputUTF8char(unsigned int split)
-{
-  char * output;
-  if(split < 0x80) {
-    output = (char *)msSmallCalloc(1,sizeof(char));
-    *output = split & 0xFF;
-    return output;
-  }
-  else if(split < 0x800) {
-    output = (char *)msSmallCalloc(2,sizeof(char));
-    *output = split & 0xFF;
-    output++;
-    *output = split & 0xFF00;
-    return output;
-  }
-  return NULL;
-}
-
 lookupTable *initTable()
 {
   lookupTable *data;
@@ -230,13 +212,9 @@ int utfgridFreeImage(imageObj *img)
 int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
   int row, col, i, waterPresence;
-  wchar_t *rowdata, *prowdata;
   band_type pixelid;
-  char *utf_string;
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
-
-  rowdata = (wchar_t *)msSmallCalloc(img->width+1,sizeof(wchar_t));
 
   printf("{\"grid\":[");
 
@@ -246,7 +224,6 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
     if(row!=0)
       printf(",");
     printf("\"");
-    prowdata = rowdata;
     for(col=0; col<img->width; col++) {
       pixelid = renderer->buffer[(row*img->width)+col];
 
@@ -254,25 +231,18 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
         waterPresence = 1;
       } 
 
-      *prowdata = pixelid;
       if(pixelid<0x80) {
         char s[]= {(pixelid & 0xFF)};
         printf("%s", s);
       }
       else {
-        char s[]= {(pixelid & 0xFF),(pixelid & 0xFF00)};
+        char s[]= {(pixelid & 0xFF00),(pixelid & 0xFF)};
         printf("%s", s);
       }
-
-      // utf_string = msConvertWideStringToUTF8 (prowdata, "UTF-8");
-      prowdata++;
     }
-    utf_string = msConvertWideStringToUTF8 (rowdata, "wchar_t");
-    // printf("%s", utf_string);
+
     printf("\"");
   }
-
-  msFree(rowdata);
 
   printf("],\"keys\":[");
 
