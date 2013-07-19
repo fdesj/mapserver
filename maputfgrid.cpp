@@ -84,18 +84,26 @@ struct UTFGridRenderer {
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
 
-unsigned int encodeToUTF8(unsigned int encode)
+int encodeToUTF8(unsigned int &encode)
 {
+  encode += 32;
+  if(encode >= 34) {
+    encode = encode +1;
+  }
+  if (encode >= 92) {
+    encode = encode +1;
+  }
   if(encode < 0x80)
-    return encode;
+    return MS_SUCCESS;
   else if(encode < 0x800) {
     unsigned int lowBits, highBits;
     lowBits = encode % 0x40 + 0x80;
     highBits = encode - encode % 0x40;
     highBits = (highBits << 2) + 0xC000;
-    return lowBits+highBits;
+    encode = lowBits+highBits;
+    return MS_SUCCESS;
   }
-  return -1;
+  return MS_SUCCESS;
 }
 
 char * outputUTF8char(unsigned int split)
@@ -240,22 +248,27 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
     printf("\"");
     prowdata = rowdata;
     for(col=0; col<img->width; col++) {
-        pixelid = renderer->buffer[(row*img->width)+col]+32;
+      pixelid = renderer->buffer[(row*img->width)+col];
 
       if(pixelid == 32) {
         waterPresence = 1;
       } 
-      if(pixelid >= 34) {
-        pixelid = pixelid +1;
-      }
-      if (pixelid >= 92) {
-        pixelid = pixelid +1;
-      }
+
       *prowdata = pixelid;
+      if(pixelid<0x80) {
+        char s[]= {(pixelid & 0xFF)};
+        printf("%s", s);
+      }
+      else {
+        char s[]= {(pixelid & 0xFF),(pixelid & 0xFF00)};
+        printf("%s", s);
+      }
+
+      // utf_string = msConvertWideStringToUTF8 (prowdata, "UTF-8");
       prowdata++;
     }
     utf_string = msConvertWideStringToUTF8 (rowdata, "wchar_t");
-    printf("%s", utf_string);
+    // printf("%s", utf_string);
     printf("\"");
   }
 
@@ -351,7 +364,7 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *p, colorObj *color)
 
   addToTable(r, p, value);
 
-  value = encodeToUTF8(value);
+  encodeToUTF8(value);
 
   polygon_adaptor polygons(p);
 
