@@ -251,6 +251,7 @@ class pixfmt_alpha_blend_utf
     }
 
   public:
+    pixfmt_alpha_blend_utf() : m_rbuf(0) {}
     explicit pixfmt_alpha_blend_utf(rbuf_type& rb) :
       m_rbuf(&rb)
     {}

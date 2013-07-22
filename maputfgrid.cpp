@@ -65,7 +65,18 @@ struct lookupTable {
   int counter;
 };
 
-struct UTFGridRenderer {   
+class UTFGridRenderer {
+public:
+  UTFGridRenderer()
+  {
+    stroke = NULL;
+  }
+  ~UTFGridRenderer()
+  {
+    if(stroke)
+      delete stroke;
+  }
+
   lookupTable *data;
   int utfresolution;
   int imagewidth;
@@ -81,7 +92,7 @@ struct UTFGridRenderer {
   rasterizer_scanline m_rasterizer;
   renderer_scanline m_renderer_scanline;
   mapserver::scanline_bin sl_utf;
-  mapserver::conv_stroke<line_adaptor> stroke;
+  mapserver::conv_stroke<line_adaptor> *stroke;
 };
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
@@ -166,7 +177,7 @@ int addToTable(UTFGridRenderer *r, shapeObj *p, band_type &value)
 imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, colorObj * bg)
 {
   UTFGridRenderer *r;
-  r = (UTFGridRenderer *) msSmallMalloc(sizeof(UTFGridRenderer));
+  r = new UTFGridRenderer;
 
   r->data = initTable();
 
@@ -204,7 +215,7 @@ int utfgridFreeImage(imageObj *img)
 
   freeTable(r->data);  
   msFree(r->buffer);
-  msFree(r);
+  delete r;
 
   img->img.plugin = NULL;
 
@@ -365,11 +376,16 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
 
   line_adaptor lines = line_adaptor(p);
 
+
   r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_non_zero);
-  r->stroke.attach(lines);
-  r->stroke.width(stroke->width);
-  r->m_rasterizer.add_path(r->stroke);
+  r->m_rasterizer.filling_rule(mapserver::fill_non_zero);  
+  if(!r->stroke) {
+    r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
+  } else {
+    r->stroke->attach(lines);
+  }
+  r->stroke->width(stroke->width);
+  r->m_rasterizer.add_path(*r->stroke);
   r->m_renderer_scanline.color(utfitem(value));
   mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
