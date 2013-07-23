@@ -106,13 +106,13 @@ int encodeToUTF8(unsigned int &encode)
   if (encode >= 92) {
     encode = encode +1;
   }
-  if(encode > 128) {
-    unsigned int lowBits, highBits;
-    lowBits = (encode % 64) + 128;
-    highBits = encode - (encode % 64);
-    highBits = (highBits << 2) + 49152;
-    encode = highBits + lowBits;
-  }
+  // if(encode > 128) {
+  //   unsigned int lowBits, highBits;
+  //   lowBits = (encode % 64) + 128;
+  //   highBits = encode - (encode % 64);
+  //   highBits = (highBits << 2) + 49152;
+  //   encode = highBits + lowBits;
+  // }
   return MS_SUCCESS;
 }
 
@@ -149,14 +149,14 @@ int freeTable(lookupTable *data)
 
 int addToTable(UTFGridRenderer *r, shapeObj *p, band_type &value)
 {
-  int i;
-  for(i=0; i<r->data->counter; i++) {
-    if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
-      value = r->data->table[i].utfvalue;
+  // int i;
+  // for(i=0; i<r->data->counter; i++) {
+  //   if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
+  //     value = r->data->table[i].utfvalue;
 
-      return MS_SUCCESS;
-    }
-  }
+  //     return MS_SUCCESS;
+  //   }
+  // }
   value = (r->data->counter+1);
 
   r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
@@ -226,72 +226,71 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
-  // printf("{\"grid\":[");
+  printf("{\"grid\":[");
 
   waterPresence = 0;  
   for(row=0; row<img->height; row++) {
 
-  //   if(row!=0)
-  //     printf(",");
-  //   printf("\"");
+    if(row!=0)
+      printf(",");
+    printf("\"");
     for(col=0; col<img->width; col++) {
       pixelid = renderer->buffer[(row*img->width)+col];
 
-  //     if(pixelid == 32) {
-  //       waterPresence = 1;
-  //     } 
-      // wchar_t *string;
-      // string[0] = pixelid;
-      // string[1] = '\0';
-      // char * gremant = msConvertWideStringToUTF8 (string, "");
-      // printf("%s", gremant);
-      if(pixelid>128) {
-        wchar_t s[3]= {((pixelid - (pixelid % 256)) >> 8),(pixelid % 256)};
-        s[2] = '\0';  
-        char * gremant;
-        gremant = msConvertWideStringToUTF8 (s, "wchar_t");
-        printf("%i ", pixelid);
-        printf("%s \n", gremant);
+      if(pixelid == 32) {
+        waterPresence = 1;
+      } 
+
+      if(pixelid>127) {
+        wchar_t s[2]= {pixelid};
+        s[1] = '\0';  
+        char * utf8;
+        utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
+        printf("%s", utf8);
+        msFree(utf8);
       }
-      // else {
-        // wchar_t s[]= {(pixelid & 0xFF00),(pixelid & 0xFF)};
-        // char * gremant = msConvertWideStringToUTF8 (s, "UTF-8");
-        // printf("%s", gremant);
-      // }
+      else {
+        wchar_t s[2]= {pixelid};
+        s[1] = '\0';  
+        char * utf8;
+        utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
+        printf("%s", utf8);
+        msFree(utf8);
+      }
     }
 
-  //   printf("\"");
+    printf("\"");
   }
 
-  // printf("],\"keys\":[");
+  printf("],\"keys\":[");
 
-  // if(waterPresence==1) 
-  //   printf("\"\",");
+  if(waterPresence==1) 
+    printf("\"\",");
 
-  // for(i=0;i<renderer->data->counter;i++) {  
-  //   if(i!=0)
-  //     printf(",");
+  for(i=0;i<renderer->data->counter;i++) {  
+    if(i!=0)
+      printf(",");
 
-  //   if(renderer->useutfitem)
-  //     printf("\"%s\"", renderer->data->table[i].itemvalue);
-  //   else
-  //     printf("\"%i\"", renderer->data->table[i].serialid);
-  // }
+    if(renderer->useutfitem)
+      printf("\"%s\"", renderer->data->table[i].itemvalue);
+    else
+      printf("\"%i\"", renderer->data->table[i].serialid);
+  }
 
-  // fprintf(stdout, "],\"data\":{");
+  fprintf(stdout, "],\"data\":{");
 
-  // for(i=0;i<renderer->data->counter;i++) {
-  //   if(i!=0)
-  //     printf(",");
+  for(i=0;i<renderer->data->counter;i++) {
+    if(i!=0)
+      printf(",");
 
-  //   if(renderer->useutfitem)
-  //     printf("\"%s\":", renderer->data->table[i].itemvalue);
-  //   else
-  //     printf("\"%i\":", renderer->data->table[i].serialid);
-  //   printf("%s", renderer->data->table[i].datavalues);
-  // }
+    if(renderer->useutfitem)
+      printf("\"%s\":", renderer->data->table[i].itemvalue);
+    else
+      printf("\"%i\":", renderer->data->table[i].serialid);
+    printf("%s", renderer->data->table[i].datavalues);
+  }
 
-  // printf("}}");
+  printf("}}");
 
   return MS_SUCCESS;
 }
@@ -371,29 +370,29 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
   if(p->type == MS_SHAPE_POLYGON)
     return MS_SUCCESS;
 
-  // UTFGridRenderer *r = UTFGRID_RENDERER(img);
-  // band_type value;
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  band_type value;
 
-  // growTable(r->data);
+  growTable(r->data);
 
-  // addToTable(r, p, value);
+  addToTable(r, p, value);
 
-  // encodeToUTF8(value);
+  encodeToUTF8(value);
 
-  // line_adaptor lines = line_adaptor(p);
+  line_adaptor lines = line_adaptor(p);
 
 
-  // r->m_rasterizer.reset();
-  // r->m_rasterizer.filling_rule(mapserver::fill_non_zero);  
-  // if(!r->stroke) {
-  //   r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
-  // } else {
-  //   r->stroke->attach(lines);
-  // }
-  // r->stroke->width(stroke->width);
-  // r->m_rasterizer.add_path(*r->stroke);
-  // r->m_renderer_scanline.color(utfitem(value));
-  // mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_non_zero);  
+  if(!r->stroke) {
+    r->stroke = new mapserver::conv_stroke<line_adaptor>(lines);
+  } else {
+    r->stroke->attach(lines);
+  }
+  r->stroke->width(stroke->width);
+  r->m_rasterizer.add_path(*r->stroke);
+  r->m_renderer_scanline.color(utfitem(value));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
