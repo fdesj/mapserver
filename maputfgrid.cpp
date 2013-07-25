@@ -29,7 +29,6 @@
 
 
 #include "mapserver.h"
-// #include "mapagg.h"
 #include "maputfgrid.h"
 #include "renderers/agg/include/agg_rasterizer_scanline_aa.h"
 #include "renderers/agg/include/agg_basics.h"
@@ -51,7 +50,6 @@ typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 static utfpix32 UTF_WATER = utfpix32(32, 0);
 
 #define utfitem(c) utfpix32(c, 0)
-
 
 struct shapeData 
 {
@@ -143,7 +141,7 @@ int freeTable(lookupTable *data)
 
 int addToTable(UTFGridRenderer *r, shapeObj *p, band_type &value)
 {
-  if(r->duplicates==0) {
+  if(r->duplicates==0 && r->useutfitem==1) {
     int i;
     for(i=0; i<r->data->counter; i++) {
       if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
@@ -242,7 +240,7 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       wchar_t s[2]= {pixelid};
       s[1] = '\0';  
       char * utf8;
-      utf8 = msConvertWideStringToUTF8 (s, "UCS-4-INTERNAL");
+      utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
       printf("%s", utf8);
       msFree(utf8);
     }

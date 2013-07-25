@@ -165,7 +165,7 @@ struct utfpix32
 
   enum base_scale_e
   {
-    base_shift = 32,
+    base_shift = 16,
     base_scale = 1 << base_shift,
     base_mask  = base_scale - 1
   };
