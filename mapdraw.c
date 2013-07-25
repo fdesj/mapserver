@@ -168,40 +168,6 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
       bg = NULL;
     }
 
-  /* This is only for the demo. */
-  if( strcasecmp(map->outputformat->driver,"UTFGRID") == 0 ) {
-    double utfRes;
-    utfRes = atof(msGetOutputFormatOption(map->outputformat, "UTFRESOLUTION", "4"));
-    image = renderer->createImage(map->width/utfRes, map->height/utfRes, map->outputformat,bg);
-    if (image == NULL)
-      return(NULL);
-    image->format = map->outputformat;
-    image->format->refcount++;
-    image->width = map->width/utfRes;
-    image->height = map->height/utfRes;
-
-    image->resolution = map->resolution;
-    image->resolutionfactor = map->resolution/map->defresolution;
-
-   
-
-    if(!image) {
-      msSetError(MS_GDERR, "Unable to initialize image.", "msPrepareImage()");
-      return(NULL);
-    }
-
-    map->cellsize = msAdjustExtent(&(map->extent),map->width/utfRes,map->height/utfRes);
-
-    status = msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
-    if(status != MS_SUCCESS) {
-      msFreeImage(image);
-      return(NULL);
-    }
-
-    return image;
-  }
-  /* Only for UTFGrid demo. */
-
   image = renderer->createImage(map->width, map->height, map->outputformat,bg);
   if (image == NULL)
     return(NULL);
