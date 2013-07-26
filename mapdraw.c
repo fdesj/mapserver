@@ -3268,7 +3268,7 @@ void msImageEndLayer(mapObj *map, layerObj *layer, imageObj *image)
 
 /**
  * Generic function to tell the underline device that shape
- * drawing is stating
+ * drawing is starting
  */
 
 void msDrawStartShape(mapObj *map, layerObj *layer, imageObj *image,
