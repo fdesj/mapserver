@@ -29,6 +29,7 @@
 
 #include "mapserver.h"
 #include "mapagg.h"
+#include "mapaggcommon.h"
 #include <assert.h>
 #include "renderers/agg/include/agg_color_rgba.h"
 #include "renderers/agg/include/agg_pixfmt_rgba.h"
@@ -47,7 +48,6 @@
 #include "renderers/agg/include/agg_image_accessors.h"
 #include "renderers/agg/include/agg_conv_stroke.h"
 #include "renderers/agg/include/agg_conv_dash.h"
-#include "renderers/agg/include/agg_path_storage.h"
 #include "renderers/agg/include/agg_font_freetype.h"
 #include "renderers/agg/include/agg_conv_contour.h"
 #include "renderers/agg/include/agg_ellipse.h"
@@ -556,25 +556,6 @@ int agg2RenderGlyphsLine(imageObj *img, labelPathObj *labelpath, labelStyleObj *
   return MS_SUCCESS;
 }
 
-static mapserver::path_storage imageVectorSymbolAGG(symbolObj *symbol)
-{
-  mapserver::path_storage path;
-  bool is_new=true;
-  for(int i=0; i < symbol->numpoints; i++) {
-    if((symbol->points[i].x == -99) && (symbol->points[i].y == -99)) { // (PENUP)
-      is_new=true;
-    } else {
-      if(is_new) {
-        path.move_to(symbol->points[i].x,symbol->points[i].y);
-        is_new=false;
-      } else {
-        path.line_to(symbol->points[i].x,symbol->points[i].y);
-      }
-    }
-  }
-  return path;
-}
-
 
 int agg2RenderVectorSymbol(imageObj *img, double x, double y,
                            symbolObj *symbol, symbolStyleObj * style)
@@ -583,7 +564,7 @@ int agg2RenderVectorSymbol(imageObj *img, double x, double y,
   double ox = symbol->sizex * 0.5;
   double oy = symbol->sizey * 0.5;
 
-  mapserver::path_storage path = imageVectorSymbolAGG(symbol);
+  mapserver::path_storage path = imageVectorSymbol(symbol);
   mapserver::trans_affine mtx;
   mtx *= mapserver::trans_affine_translation(-ox,-oy);
   mtx *= mapserver::trans_affine_scaling(style->scale);

@@ -30,12 +30,12 @@
 
 #include "mapserver.h"
 #include "maputfgrid.h"
+#include "mapaggcommon.h"
 #include "renderers/agg/include/agg_rasterizer_scanline_aa.h"
 #include "renderers/agg/include/agg_basics.h"
 #include "renderers/agg/include/agg_renderer_scanline.h"
 #include "renderers/agg/include/agg_scanline_bin.h"
 #include "renderers/agg/include/agg_conv_stroke.h"
-#include "renderers/agg/include/agg_path_storage.h"
 #include "renderers/agg/include/agg_ellipse.h"
 
 
@@ -100,18 +100,19 @@ public:
 /*
  * Encode to avoid unavailable char in the JSON
  */
-int encodeForRendering(unsigned int &encode)
+int encodeForRendering(unsigned int toencode)
 {
-  encode += 32;
+  unsigned int encoded;
+  encoded = toencode + 32;
   /* 34 => " */
-  if(encode >= 34) {
-    encode = encode +1;
+  if(encoded >= 34) {
+    encoded = encoded +1;
   }
   /* 92 => \ */
-  if (encode >= 92) {
-    encode = encode +1;
+  if (encoded >= 92) {
+    encoded = encoded +1;
   }
-  return encode;
+  return encoded;
 }
 
 /*
@@ -196,6 +197,21 @@ band_type addToTable(UTFGridRenderer *r, shapeObj *p)
   r->data->counter++;
 
   return utfvalue;
+}
+
+/*
+ * Use AGG to render any path.
+ */
+template<class vertex_source> 
+int utfgridRenderPath(imageObj *img, vertex_source &path) 
+{
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(path);
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  return MS_SUCCESS;
 }
 
 /*
@@ -433,12 +449,7 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
 
   /* Render the polygon */
   polygon_adaptor_utf polygons(polygonshape, r->utfresolution);
-
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer.add_path(polygons);
-  r->m_renderer_scanline.color(utfitem(r->utfvalue));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  utfgridRenderPath(img, polygons);
 
   return MS_SUCCESS;
 }
@@ -449,10 +460,6 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
  */
 int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linestyle)
 {
-  /* Shape type verification */
-  if(lineshape->type == MS_SHAPE_POLYGON)
-    return MS_SUCCESS;
-
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   /* utfvalue is set to -1 if the shape isn't in the table. */
@@ -464,43 +471,15 @@ int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linest
   /* Render the line */
   line_adaptor_utf lines(lineshape, r->utfresolution);
 
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_non_zero);  
   if(!r->stroke) {
     r->stroke = new mapserver::conv_stroke<line_adaptor_utf>(lines);
   } else {
     r->stroke->attach(lines);
   }
-  r->stroke->width(linestyle->width);
-  r->m_rasterizer.add_path(*r->stroke);
-  r->m_renderer_scanline.color(utfitem(r->utfvalue));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  r->stroke->width(linestyle->width);  
+  utfgridRenderPath(img, *r->stroke);
 
   return MS_SUCCESS;
-}
-
-/*
- * Function that allow vector symbol to be stored in a AGG path storage.
- */
-static mapserver::path_storage imageVectorSymbolUTFGrid(symbolObj *symbol)
-{
-  mapserver::path_storage path;
-  int is_new=1;
-
-  for(int i=0; i < symbol->numpoints; i++) {
-    if((symbol->points[i].x == -99) && (symbol->points[i].y == -99))
-      is_new=1;
-
-    else {
-      if(is_new) {
-        path.move_to(symbol->points[i].x,symbol->points[i].y);
-        is_new=0;
-      } else {
-        path.line_to(symbol->points[i].x,symbol->points[i].y);
-      }
-    }
-  }
-  return path;
 }
 
 /*
@@ -513,7 +492,7 @@ int utfgridRenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symb
   double oy = symbol->sizey * 0.5;
 
   /* Pathing the symbol */
-  mapserver::path_storage path = imageVectorSymbolUTFGrid(symbol);
+  mapserver::path_storage path = imageVectorSymbol(symbol);
 
   /* Transformation to the right size/scale. */
   mapserver::trans_affine mtx;
@@ -524,11 +503,8 @@ int utfgridRenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symb
   path.transform(mtx);
 
   /* Rendering the symbol. */
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer.add_path(path);
-  r->m_renderer_scanline.color(utfitem(r->utfvalue));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  utfgridRenderPath(img, path);
+
   return MS_SUCCESS;
 }
 
@@ -541,19 +517,17 @@ int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symb
   rasterBufferObj *pixmap = symbol->pixmap_buffer;
 
   /* Pathing the symbol BBox */
-  int ims_2 = MS_NINT(MS_MAX(pixmap->width,pixmap->height)*style->scale*1.415)/2+1;
   mapserver::path_storage pixmap_bbox;
-  pixmap_bbox.move_to((x-ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
-  pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
-  pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
-  pixmap_bbox.line_to((x-ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
+  double w, h;
+  w = pixmap->width*style->scale/(2.0); 
+  h= pixmap->height*style->scale/(2.0);
+  pixmap_bbox.move_to((x-w)/r->utfresolution,(y-h)/r->utfresolution);
+  pixmap_bbox.line_to((x+w)/r->utfresolution,(y-h)/r->utfresolution);
+  pixmap_bbox.line_to((x+w)/r->utfresolution,(y+h)/r->utfresolution);
+  pixmap_bbox.line_to((x-w)/r->utfresolution,(y+h)/r->utfresolution);
 
   /* Rendering the symbol */
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer.add_path(pixmap_bbox);
-  r->m_renderer_scanline.color(utfitem(r->utfvalue));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  utfgridRenderPath(img, pixmap_bbox);
 
   return MS_SUCCESS;
 }
@@ -561,9 +535,9 @@ int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symb
 /*
  * Function that render ellipse type symbols into UTFGrid.
  */
-int utfgridRenderEllipseSymbol(imageObj *image, double x, double y, symbolObj *symbol, symbolStyleObj * style)
+int utfgridRenderEllipseSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
 {
-  UTFGridRenderer *r = UTFGRID_RENDERER(image);
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   /* Pathing the symbol. */
   mapserver::path_storage path;
@@ -580,11 +554,7 @@ int utfgridRenderEllipseSymbol(imageObj *image, double x, double y, symbolObj *s
   }
 
   /* Rendering the symbol. */
-  r->m_rasterizer.reset();
-  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
-  r->m_rasterizer.add_path(path);
-  r->m_renderer_scanline.color(utfitem(r->utfvalue));
-  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+  utfgridRenderPath(img, path);
 
   return MS_SUCCESS;
 }
