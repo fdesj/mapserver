@@ -35,7 +35,9 @@
 #cmakedefine USE_XMLMAPFILE 1
 #cmakedefine USE_GENERIC_MS_NINT 1
 #cmakedefine AGG_ALIASED_ENABLED 1
-
+#cmakedefine POSTGIS_HAS_SERVER_VERSION 1
+#cmakedefine USE_SVG_CAIRO 1
+#cmakedefine USE_RSVG 1
 
 /*windows specific hacks*/
 #if defined(_WIN32)

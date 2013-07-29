@@ -98,10 +98,12 @@ typedef uint32_t        ms_uint32;
 
 #include "mapserver-api.h"
 
+
 /*forward declaration of rendering object*/
 typedef struct rendererVTableObj rendererVTableObj;
 typedef struct tileCacheObj tileCacheObj;
-
+#ifndef SWIG
+#endif
 
 /* ms_bitarray is used by the bit mask in mapbit.c */
 typedef ms_uint32 *     ms_bitarray;
@@ -173,14 +175,14 @@ extern "C" {
 #define MS_CHECK_ALLOC(var, size, retval)     \
     if (!var) {   \
         msSetError(MS_MEMERR, "%s: %d: Out of memory allocating %u bytes.\n", __FUNCTION__, \
-                   __FILE__, __LINE__, size);  \
+                   __FILE__, __LINE__, (unsigned int)(size));  \
         return retval;                         \
     }
 
 #define MS_CHECK_ALLOC_NO_RET(var, size)                                   \
     if (!var) {                                                       \
         msSetError(MS_MEMERR, "%s: %d: Out of memory allocating %u bytes.\n", __FUNCTION__, \
-                   __FILE__, __LINE__, size);                           \
+                   __FILE__, __LINE__, (unsigned int)(size));                           \
         return;                                                         \
     }
 
@@ -642,9 +644,9 @@ extern "C" {
   };
   enum MS_TOKEN_FUNCTION_ENUM {
     MS_TOKEN_FUNCTION_LENGTH=340, MS_TOKEN_FUNCTION_TOSTRING, MS_TOKEN_FUNCTION_COMMIFY, MS_TOKEN_FUNCTION_AREA, MS_TOKEN_FUNCTION_ROUND, MS_TOKEN_FUNCTION_FROMTEXT,
-    MS_TOKEN_FUNCTION_BUFFER, MS_TOKEN_FUNCTION_DIFFERENCE, MS_TOKEN_FUNCTION_SIMPLIFY, MS_TOKEN_FUNCTION_SIMPLIFYPT, MS_TOKEN_FUNCTION_GENERALIZE
+    MS_TOKEN_FUNCTION_BUFFER, MS_TOKEN_FUNCTION_DIFFERENCE, MS_TOKEN_FUNCTION_SIMPLIFY, MS_TOKEN_FUNCTION_SIMPLIFYPT, MS_TOKEN_FUNCTION_GENERALIZE, MS_TOKEN_FUNCTION_SMOOTHSIA
   };
-  enum MS_TOKEN_BINDING_ENUM { MS_TOKEN_BINDING_DOUBLE=360, MS_TOKEN_BINDING_INTEGER, MS_TOKEN_BINDING_STRING, MS_TOKEN_BINDING_TIME, MS_TOKEN_BINDING_SHAPE, MS_TOKEN_BINDING_MAP_CELLSIZE };
+  enum MS_TOKEN_BINDING_ENUM { MS_TOKEN_BINDING_DOUBLE=360, MS_TOKEN_BINDING_INTEGER, MS_TOKEN_BINDING_STRING, MS_TOKEN_BINDING_TIME, MS_TOKEN_BINDING_SHAPE, MS_TOKEN_BINDING_MAP_CELLSIZE, MS_TOKEN_BINDING_DATA_CELLSIZE };
   enum MS_PARSE_TYPE_ENUM { MS_PARSE_TYPE_BOOLEAN, MS_PARSE_TYPE_STRING, MS_PARSE_TYPE_SHAPE };
 
 #ifndef SWIG
@@ -691,7 +693,8 @@ extern "C" {
   typedef struct {
     colorObj *pixel; /* for raster layers */
     shapeObj *shape; /* for vector layers */
-    double dblval; /* for cellsize used by simplify */    
+    double dblval; /* for map cellsize used by simplify */
+    double dblval2; /* for data cellsize */    
     expressionObj *expr; /* expression to be evaluated (contains tokens) */
     int type; /* type of parse: boolean, string/text or shape/geometry */
     parseResultObj result; /* parse result */
@@ -1546,6 +1549,7 @@ extern "C" {
 
     char *tileitem;
     char *tileindex; /* layer index file for tiling support */
+    char *tilesrs;
 
 #ifndef SWIG
     int tileitemindex;
@@ -2086,6 +2090,8 @@ extern "C" {
 
   MS_DLL_EXPORT char *msStrdup( const char * pszString );
 
+#include "hittest.h"
+
   /* in mapsymbol.c */
   /* Use this function *only* with mapfile loading phase */
   MS_DLL_EXPORT int loadSymbolSet(symbolSetObj *symbolset, mapObj *map);
@@ -2112,11 +2118,11 @@ extern "C" {
   MS_DLL_EXPORT double msSymbolGetDefaultSize(symbolObj *s);
   MS_DLL_EXPORT void freeImageCache(struct imageCacheObj *ic);
 
-  MS_DLL_EXPORT imageObj *msDrawLegend(mapObj *map, int scale_independent); /* in maplegend.c */
+  MS_DLL_EXPORT imageObj *msDrawLegend(mapObj *map, int scale_independent, map_hittest *hittest); /* in maplegend.c */
   MS_DLL_EXPORT int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_y,
-                                     int *alayers, int numl_ayer);
+                                     int *alayers, int numl_ayer, map_hittest *hittest);
   MS_DLL_EXPORT int msEmbedLegend(mapObj *map, imageObj *img);
-  MS_DLL_EXPORT int msDrawLegendIcon(mapObj* map, layerObj* lp, classObj* myClass, int width, int height, imageObj *img, int dstX, int dstY, int scale_independant);
+  MS_DLL_EXPORT int msDrawLegendIcon(mapObj* map, layerObj* lp, classObj* myClass, int width, int height, imageObj *img, int dstX, int dstY, int scale_independant, class_hittest *hittest);
   MS_DLL_EXPORT imageObj *msCreateLegendIcon(mapObj* map, layerObj* lp, classObj* myClass, int width, int height, int scale_independant);
 
   MS_DLL_EXPORT int msLoadFontSet(fontSetObj *fontSet, mapObj *map); /* in maplabel.c */
@@ -2607,6 +2613,7 @@ extern "C" {
   /* ==================================================================== */
 #include "mapows.h"
 
+
   /* ==================================================================== */
   /*      prototypes for functions in mapgeos.c                         */
   /* ==================================================================== */
@@ -2697,6 +2704,14 @@ extern "C" {
   /*      end of prototypes for functions in mapgraticule.c               */
   /* ==================================================================== */
 
+  /* ==================================================================== */
+  /*      prototypes for functions in mapsmoothing.c                      */
+  /* ==================================================================== */
+  MS_DLL_EXPORT shapeObj* msSmoothShapeSIA(shapeObj *shape, int ss, int si, char *preprocessing);
+  
+  /* ==================================================================== */
+  /*      end of prototypes for functions in mapsmoothing.c               */
+  /* ==================================================================== */
 #endif
 
 

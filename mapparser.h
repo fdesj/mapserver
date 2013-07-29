@@ -1,8 +1,10 @@
-/* A Bison parser, made by GNU Bison 2.7.  */
 
-/* Bison interface for Yacc-like parsers in C
+/* A Bison parser, made by GNU Bison 2.4.1.  */
+
+/* Skeleton interface for Bison's Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989-1990, 2000-2012 Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,15 +32,6 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY_YY_MAPPARSER_H_INCLUDED
-# define YY_YY_MAPPARSER_H_INCLUDED
-/* Enabling traces.  */
-#ifndef YYDEBUG
-# define YYDEBUG 0
-#endif
-#if YYDEBUG
-extern int yydebug;
-#endif
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -77,60 +70,24 @@ extern int yydebug;
      LENGTH = 286,
      AREA = 287,
      TOSTRING = 288,
-     GENERALIZE = 289,
-     SIMPLIFYPT = 290,
-     SIMPLIFY = 291,
-     DIFFERENCE = 292,
-     YYBUFFER = 293,
-     NEG = 294
+     SMOOTHSIA = 289,
+     GENERALIZE = 290,
+     SIMPLIFYPT = 291,
+     SIMPLIFY = 292,
+     DIFFERENCE = 293,
+     YYBUFFER = 294,
+     NEG = 295
    };
 #endif
-/* Tokens.  */
-#define NUMBER 258
-#define STRING 259
-#define TIME 260
-#define SHAPE 261
-#define OR 262
-#define AND 263
-#define NOT 264
-#define IRE 265
-#define IEQ 266
-#define IN 267
-#define GE 268
-#define LE 269
-#define GT 270
-#define LT 271
-#define NE 272
-#define EQ 273
-#define RE 274
-#define DWITHIN 275
-#define BEYOND 276
-#define CONTAINS 277
-#define WITHIN 278
-#define CROSSES 279
-#define OVERLAPS 280
-#define TOUCHES 281
-#define DISJOINT 282
-#define INTERSECTS 283
-#define ROUND 284
-#define COMMIFY 285
-#define LENGTH 286
-#define AREA 287
-#define TOSTRING 288
-#define GENERALIZE 289
-#define SIMPLIFYPT 290
-#define SIMPLIFY 291
-#define DIFFERENCE 292
-#define YYBUFFER 293
-#define NEG 294
 
 
 
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 typedef union YYSTYPE
 {
-/* Line 2065 of yacc.c  */
-#line 30 "mapparser.y"
+
+/* Line 1676 of yacc.c  */
+#line 30 "/home/even/mapserver/git/mapserver/mapparser.y"
 
   double dblval;
   int intval;  
@@ -139,8 +96,9 @@ typedef union YYSTYPE
   shapeObj *shpval;
 
 
-/* Line 2065 of yacc.c  */
-#line 144 "mapparser.h"
+
+/* Line 1676 of yacc.c  */
+#line 102 "/home/even/mapserver/git/mapserver/mapparser.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -148,18 +106,5 @@ typedef union YYSTYPE
 #endif
 
 
-#ifdef YYPARSE_PARAM
-#if defined __STDC__ || defined __cplusplus
-int yyparse (void *YYPARSE_PARAM);
-#else
-int yyparse ();
-#endif
-#else /* ! YYPARSE_PARAM */
-#if defined __STDC__ || defined __cplusplus
-int yyparse (parseObj *p);
-#else
-int yyparse ();
-#endif
-#endif /* ! YYPARSE_PARAM */
 
-#endif /* !YY_YY_MAPPARSER_H_INCLUDED  */
+

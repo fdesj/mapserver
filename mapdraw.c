@@ -34,7 +34,6 @@
 #include "mapcopy.h"
 
 
-
 #ifdef USE_GD
 /*
  * Functions to reset any pen (color index) values previously set. Used primarily to reset things when
@@ -986,7 +985,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
     /* Check if the shape size is ok to be drawn */
     if((shape.type == MS_SHAPE_LINE || shape.type == MS_SHAPE_POLYGON) && (minfeaturesize > 0) && (msShapeCheckSize(&shape, minfeaturesize) == MS_FALSE)) {
       if(layer->debug >= MS_DEBUGLEVEL_V)
-        msDebug("msDrawVectorLayer(): Skipping shape (%d) because LAYER::MINFEATURESIZE is bigger than shape size\n", shape.index);
+        msDebug("msDrawVectorLayer(): Skipping shape (%ld) because LAYER::MINFEATURESIZE is bigger than shape size\n", shape.index);
       msFreeShape(&shape);
       continue;
     }
@@ -1046,7 +1045,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
     if (layer->type == MS_LAYER_LINE && msLayerGetProcessingKey(layer, "POLYLINE_NO_CLIP")) {
       drawmode |= MS_DRAWMODE_UNCLIPPEDLINES;
     }
-  
+
     if (cache) {
       styleObj *pStyle = layer->class[shape.classindex]->styles[0];
       colorObj tmp;
@@ -1099,7 +1098,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
       retcode = MS_FAILURE;
       break;
     }
-
+    
     if(shape.numlines == 0) { /* once clipped the shape didn't need to be drawn */
       msFreeShape(&shape);
       continue;
@@ -1113,6 +1112,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
     }
 
     maxnumstyles = MS_MAX(maxnumstyles, layer->class[shape.classindex]->numstyles);
+
     msFreeShape(&shape);
   }
 
@@ -2068,7 +2068,7 @@ int msDrawShape(mapObj *map, layerObj *layer, shapeObj *shape, imageObj *image, 
         if (MS_SUCCESS != msPreloadImageSymbol(MS_MAP_RENDERER(map), symbol))
           return MS_FAILURE;
       } else if (symbol->type == MS_SYMBOL_SVG) {
-#ifdef USE_SVG_CAIRO
+#if defined(USE_SVG_CAIRO) || defined(USE_RSVG)
         if (MS_SUCCESS != msPreloadSVGSymbol(symbol))
           return MS_FAILURE;
 #else

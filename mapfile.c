@@ -651,7 +651,17 @@ static void writeColor(FILE *stream, int indent, const char *name, colorObj *def
 #if ALPHACOLOR_ENABLED
   msIO_fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue, color->alpha);
 #else
-  msIO_fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue);
+  if(color->alpha != 255) {
+    char buffer[9];
+    sprintf(buffer, "%02x", color->red);
+    sprintf(buffer+2, "%02x", color->green);
+    sprintf(buffer+4, "%02x", color->blue);
+    sprintf(buffer+6, "%02x", color->alpha);
+    *(buffer+8) = 0;
+    fprintf(stream, "%s \"#%s\"\n", name, buffer);
+  } else {
+    fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue);
+  }
 #endif
 }
 
@@ -1867,6 +1877,7 @@ static int loadLabel(labelObj *label)
         break;
       case(EOF):
         msSetError(MS_EOFERR, NULL, "loadLabel()");
+        freeLabel(label);       /* free any structures allocated before EOF */
         return(-1);
       case(EXPRESSION):
         if(loadExpression(&(label->expression)) == -1) return(-1); /* loadExpression() cleans up previously allocated expression */
@@ -3482,7 +3493,10 @@ int loadClass(classObj *class, layerObj *layer)
         if(msGrowClassLabels(class) == NULL) return(-1);
         initLabel(class->labels[class->numlabels]);
         class->labels[class->numlabels]->size = MS_MEDIUM; /* only set a default if the LABEL section is present */
-        if(loadLabel(class->labels[class->numlabels]) == -1) return(-1);
+        if(loadLabel(class->labels[class->numlabels]) == -1) {
+          msFree(class->labels[class->numlabels]);
+          return(-1);
+        }
         class->numlabels++;
         break;
       case(LEADER):
@@ -3838,6 +3852,7 @@ int initLayer(layerObj *layer, mapObj *map)
   layer->tileitem = msStrdup("location");
   layer->tileitemindex = -1;
   layer->tileindex = NULL;
+  layer->tilesrs = NULL;
 
   layer->bandsitem = NULL;
   layer->bandsitemindex = -1;
@@ -3947,6 +3962,7 @@ int freeLayer(layerObj *layer)
   msFree(layer->template);
   msFree(layer->tileindex);
   msFree(layer->tileitem);
+  msFree(layer->tilesrs);
   msFree(layer->bandsitem);
   msFree(layer->plugin_library);
   msFree(layer->plugin_library_original);
@@ -4524,6 +4540,17 @@ int loadLayer(layerObj *layer, mapObj *map)
           }
         }
         break;
+      case(TILESRS):
+        if(getString(&layer->tilesrs) == MS_FAILURE) return(-1); /* getString() cleans up previously allocated string */
+        if(msyysource == MS_URL_TOKENS) {
+          if(msValidateParameter(layer->tilesrs, msLookupHashTable(&(layer->validation), "tilesrs"), msLookupHashTable(&(map->web.validation), "tilesrs"), NULL, NULL) != MS_SUCCESS) {
+            msSetError(MS_MISCERR, "URL-based TILESRS configuration failed pattern validation." , "loadLayer()");
+            msFree(layer->tilesrs);
+            layer->tilesrs=NULL;
+            return(-1);
+          }
+        }
+        break;
       case(TOLERANCE):
         if(getDouble(&(layer->tolerance)) == -1) return(-1);
         break;
@@ -4609,7 +4636,7 @@ static void writeLayer(FILE *stream, int indent, layerObj *layer)
   writeString(stream, indent, "CLASSITEM", NULL, layer->classitem);
   writeCluster(stream, indent, &(layer->cluster));
   writeString(stream, indent, "CONNECTION", NULL, layer->connection);
-  writeKeyword(stream, indent, "CONNECTIONTYPE", layer->connectiontype, 11, MS_SDE, "SDE", MS_OGR, "OGR", MS_POSTGIS, "POSTGIS", MS_WMS, "WMS", MS_ORACLESPATIAL, "ORACLESPATIAL", MS_WFS, "WFS", MS_PLUGIN, "PLUGIN", MS_UNION, "UNION", MS_UVRASTER, "UVRASTER", MS_CONTOUR, "CONTOUR");
+  writeKeyword(stream, indent, "CONNECTIONTYPE", layer->connectiontype, 10, MS_SDE, "SDE", MS_OGR, "OGR", MS_POSTGIS, "POSTGIS", MS_WMS, "WMS", MS_ORACLESPATIAL, "ORACLESPATIAL", MS_WFS, "WFS", MS_PLUGIN, "PLUGIN", MS_UNION, "UNION", MS_UVRASTER, "UVRASTER", MS_CONTOUR, "CONTOUR");
   writeString(stream, indent, "DATA", NULL, layer->data);
   writeNumber(stream, indent, "DEBUG", 0, layer->debug); /* is this right? see loadLayer() */
   writeExtent(stream, indent, "EXTENT", layer->extent);
@@ -4653,6 +4680,7 @@ static void writeLayer(FILE *stream, int indent, layerObj *layer)
   writeString(stream, indent, "TEMPLATE", NULL, layer->template);
   writeString(stream, indent, "TILEINDEX", NULL, layer->tileindex);
   writeString(stream, indent, "TILEITEM", NULL, layer->tileitem);
+  writeString(stream, indent, "TILESRS", NULL, layer->tilesrs);
   writeNumber(stream, indent, "TOLERANCE", -1, layer->tolerance);
   writeKeyword(stream, indent, "TOLERANCEUNITS", layer->toleranceunits, 7, MS_INCHES, "INCHES", MS_FEET ,"FEET", MS_MILES, "MILES", MS_METERS, "METERS", MS_KILOMETERS, "KILOMETERS", MS_NAUTICALMILES, "NAUTICALMILES", MS_DD, "DD");
   writeKeyword(stream, indent, "TRANSFORM", layer->transform, 10, MS_FALSE, "FALSE", MS_UL, "UL", MS_UC, "UC", MS_UR, "UR", MS_CL, "CL", MS_CC, "CC", MS_CR, "CR", MS_LL, "LL", MS_LC, "LC", MS_LR, "LR");
@@ -6668,7 +6696,11 @@ int msUpdateMapFromURL(mapObj *map, char *variable, char *string)
 
           break;
         case(LEGEND):
-          return msUpdateLegendFromString(&(map->legend), string, MS_TRUE);
+          if(msyylex() == LABEL) {
+            return msUpdateLabelFromString(&map->legend.label, string, MS_TRUE);
+          } else {
+            return msUpdateLegendFromString(&(map->legend), string, MS_TRUE);
+          }
         case(PROJECTION):
           msLoadProjectionString(&(map->projection), string);
           break;

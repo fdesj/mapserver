@@ -46,6 +46,10 @@
 #include <process.h>
 #endif
 
+#ifdef USE_RSVG
+#include <glib-object.h>
+#endif
+
 
 
 extern char *msyystring_buffer;
@@ -1891,6 +1895,12 @@ int msSetup()
   msGEOSSetup();
 #endif
 
+#ifdef USE_RSVG
+#if !GLIB_CHECK_VERSION(2, 35, 0)
+  g_type_init();
+#endif
+#endif
+
   return MS_SUCCESS;
 }
 
@@ -2109,7 +2119,7 @@ int msCheckParentPointer(void* p, char *objname)
     } else {
       msg="A required parent object is null";
     }
-    msSetError(MS_NULLPARENTERR, msg, "");
+    msSetError(MS_NULLPARENTERR, "%s", "", msg);
     return MS_FAILURE;
   }
   return MS_SUCCESS;
