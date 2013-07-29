@@ -564,52 +564,9 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
   return MS_SUCCESS;
 }
 
-// int agg2RenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
-// {
-//   AGG2Renderer *r = AGG_RENDERER(img);
-//   aggRendererCache *cache = (aggRendererCache*)MS_RENDERER_CACHE(MS_IMAGE_RENDERER(img));
-//   if(aggLoadFont(cache,symbol->full_font_path,style->scale) == MS_FAILURE)
-//     return MS_FAILURE;
-
-//   int unicode;
-
-//   msUTF8ToUniChar(symbol->character, &unicode);
-//   const mapserver::glyph_cache* glyph = cache->m_fman.glyph(unicode);
-//   double ox = (glyph->bounds.x1 + glyph->bounds.x2) / 2.;
-//   double oy = (glyph->bounds.y1 + glyph->bounds.y2) / 2.;
-
-  // mapserver::path_storage pixmap_bbox;
-  // pixmap_bbox.move_to((x-ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
-  // pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
-  // pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
-  // pixmap_bbox.line_to((x-ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
-
-//   mapserver::trans_affine mtx = mapserver::trans_affine_translation(-ox, -oy);
-//   if(style->rotation)
-//     mtx *= mapserver::trans_affine_rotation(-style->rotation);
-//   mtx *= mapserver::trans_affine_translation(x, y);
-
-//   mapserver::path_storage glyphs;
-
-//   cache->m_fman.init_embedded_adaptors(glyph, 0,0);
-//   mapserver::conv_transform<font_curve_type, mapserver::trans_affine> trans_c(m_curves, mtx);
-//   glyphs.concat_path(trans_c);
-
-//   if (style->color) {
-//     r->m_rasterizer_aa.reset();
-//     r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
-//     r->m_rasterizer_aa.add_path(glyphs);
-//     r->m_renderer_scanline.color(aggColor(style->color));
-//     mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_line, r->m_renderer_scanline);
-//   }
-//   return MS_SUCCESS;
-
-// }
-
 /*
  * Add the necessary functions for UTFGrid to the renderer VTable.
  */
-
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
   renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
