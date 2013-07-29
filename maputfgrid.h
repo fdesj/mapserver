@@ -154,6 +154,8 @@ private:
  * Using AGG templates to create UTFGrid pixel. This pixel could also be used
  * as a gray pixel using int32u. The only difference is that color blender is
  * disabled.
+ *
+ * Reference : agg_pixfmt_gray.h
  */
 
 //==================================================================utfpix32

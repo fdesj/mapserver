@@ -83,6 +83,7 @@ public:
   int renderlayer;
   int useutfitem;
   int duplicates;
+  band_type utfvalue;
   layerObj *utflayer;
   band_type *buffer;
   rendering_buffer m_rendering_buffer;
@@ -96,18 +97,26 @@ public:
 
 #define UTFGRID_RENDERER(image) ((UTFGridRenderer*) (image)->img.plugin)
 
+/*
+ * Encode to avoid unavailable char in the JSON
+ */
 int encodeForRendering(unsigned int &encode)
 {
   encode += 32;
+  /* 34 => " */
   if(encode >= 34) {
     encode = encode +1;
   }
+  /* 92 => \ */
   if (encode >= 92) {
     encode = encode +1;
   }
-  return MS_SUCCESS;
+  return encode;
 }
 
+/*
+ * Initialize the lookup table and allocate memory.
+ */
 lookupTable *initTable()
 {
   lookupTable *data;
@@ -118,6 +127,9 @@ lookupTable *initTable()
   return data;
 }
 
+/*
+ * Allocate more memory to the table if necessary.
+ */
 int growTable(lookupTable *data)
 {
   if(data->size == data->counter) {
@@ -127,6 +139,9 @@ int growTable(lookupTable *data)
   return MS_SUCCESS;
 }
 
+/*
+ * Free the memory used by the lookup table.
+ */
 int freeTable(lookupTable *data)
 {
   int i;
@@ -139,34 +154,53 @@ int freeTable(lookupTable *data)
   return MS_SUCCESS;
 }
 
-int addToTable(UTFGridRenderer *r, shapeObj *p, band_type &value)
+/*
+ * Add the shapeObj UTFDATA and UTFITEM to the lookup table.
+ */
+band_type addToTable(UTFGridRenderer *r, shapeObj *p)
 {
+  band_type utfvalue;
+
+  /* Looks for duplicates. */
   if(r->duplicates==0 && r->useutfitem==1) {
     int i;
     for(i=0; i<r->data->counter; i++) {
       if(!strcmp(p->values[r->utflayer->utfitemindex],r->data->table[i].itemvalue)) {
-        value = r->data->table[i].utfvalue;
+        /* Found a copy of the values in the table. */
+        utfvalue = r->data->table[i].utfvalue;
 
-        return MS_SUCCESS;
+        return utfvalue;
       }
     }
   }
-  value = (r->data->counter+1);
 
+  /* Grow size of table if necessary */
+  growTable(r->data);
+
+  utfvalue = (r->data->counter+1);
+
+  /* Simple operation so we don't have unavailable char in the JSON */
+  utfvalue = encodeForRendering(utfvalue);
+
+  /* Datas are added to the table */
   r->data->table[r->data->counter].datavalues = msEvalTextExpression(&r->utflayer->utfdata, p);
 
+  /* If UTFITEM is set in the mapfiles we add its value to the table */
   if(r->useutfitem)
     r->data->table[r->data->counter].itemvalue =  msStrdup(p->values[r->utflayer->utfitemindex]);
 
   r->data->table[r->data->counter].serialid = r->data->counter+1;
 
-  r->data->table[r->data->counter].utfvalue = value;
+  r->data->table[r->data->counter].utfvalue = utfvalue;
 
   r->data->counter++;
 
-  return MS_SUCCESS;
+  return utfvalue;
 }
 
+/*
+ * Initialize the renderer, create buffer, allocate memory.
+ */
 imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, colorObj * bg)
 {
   UTFGridRenderer *r;
@@ -184,8 +218,11 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
 
   r->duplicates = strcmp("false", msGetOutputFormatOption(format, "DUPLICATES", "true"));
 
+  r->utfvalue = -1;
+
   r->buffer = (band_type*)msSmallMalloc(width/r->utfresolution * height/r->utfresolution * sizeof(band_type));
 
+  /* AGG specific operations */
   r->m_rendering_buffer.attach(r->buffer, width/r->utfresolution, height/r->utfresolution, width/r->utfresolution);
   r->m_pixel_format.attach(r->m_rendering_buffer);
   r->m_renderer_base.attach(r->m_pixel_format);
@@ -202,6 +239,9 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   return image;
 }
 
+/*
+ * Free all the memory used by the renderer.
+ */
 int utfgridFreeImage(imageObj *img)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
@@ -215,6 +255,9 @@ int utfgridFreeImage(imageObj *img)
   return MS_SUCCESS;
 }
 
+/*
+ * Print the renderer datas as a JSON.
+ */
 int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
   int row, col, i, waterPresence;
@@ -224,19 +267,24 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 
   printf("{\"grid\":[");
 
-  waterPresence = 0;  
+  waterPresence = 0;
+  /* Print the buffer, also */  
   for(row=0; row<img->height/renderer->utfresolution; row++) {
-
+    
+    /* Needs comma between each lines but JSON must not start with a comma. */
     if(row!=0)
       printf(",");
     printf("\"");
     for(col=0; col<img->width/renderer->utfresolution; col++) {
+      /* Get the datas from buffer. */
       pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
 
+      /* A pixelid value of 32 means theres water so we need to specify it to add it in the JSON */
       if(pixelid == 32) {
         waterPresence = 1;
       } 
 
+      /* Convertion to UTF-8 encoding */
       wchar_t s[2]= {pixelid};
       s[1] = '\0';  
       char * utf8;
@@ -250,27 +298,32 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 
   printf("],\"keys\":[");
 
+  /* Print the water value if necessary */
   if(waterPresence==1) 
     printf("\"\",");
 
+  /* Prints the key specified */
   for(i=0;i<renderer->data->counter;i++) {  
     if(i!=0)
       printf(",");
 
     if(renderer->useutfitem)
       printf("\"%s\"", renderer->data->table[i].itemvalue);
+    /* If no UTFITEM specified use the serial ID as the key */
     else
       printf("\"%i\"", renderer->data->table[i].serialid);
   }
 
-  fprintf(stdout, "],\"data\":{");
+  printf("],\"data\":{");
 
+  /* Print the datas */
   for(i=0;i<renderer->data->counter;i++) {
     if(i!=0)
       printf(",");
 
     if(renderer->useutfitem)
       printf("\"%s\":", renderer->data->table[i].itemvalue);
+    /* If no UTFITEM specified use the serial ID as the key */
     else
       printf("\"%i\":", renderer->data->table[i].serialid);
     printf("%s", renderer->data->table[i].datavalues);
@@ -281,22 +334,30 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   return MS_SUCCESS;
 }
 
+/*
+ * Starts a layer for UTFGrid renderer.
+ */
 int utfgridStartLayer(imageObj *img, mapObj *map, layerObj *layer)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
+  /* Look if the layer uses the UTFGrid output format */
   if(&layer->utfdata!=NULL) {
 
+    /* layerwatch is set to 1 on first layer treated. Doesn't allow multiple layers. */
     if(!r->layerwatch) {
       r->renderlayer = 1;
       r->utflayer = layer;
       layer->refcount++;
 
+      /* Verify if renderer needs to use UTFITEM */
       if(r->utflayer->utfitem)
         r->useutfitem = 1;
     
+      /* Watch for multiple layers rendering, allow only one layer. */
       r->layerwatch = 1;
     }
+    /* If multiple layers, send error */
     else {
       msSetError(MS_MISCERR, "MapServer does not support multiple UTFGrid layers", "utfgridStartLayer()");
       return MS_FAILURE;
@@ -306,16 +367,44 @@ int utfgridStartLayer(imageObj *img, mapObj *map, layerObj *layer)
   return MS_SUCCESS;
 }
 
+/*
+ * Tell renderer the layer is done.
+ */
 int utfgridEndLayer(imageObj *img, mapObj *map, layerObj *layer)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
+  /* Look if the layer was rendered, if it was then turn off rendering. */
   if(r->renderlayer) {
     r->utflayer = NULL;
     layer->refcount--;
     r->renderlayer = 0;
   }
 
+  return MS_SUCCESS;
+}
+
+/*
+ * Do the table operations on the shapes. Allow multiple type of data to be rendered.
+ */
+int utfgridStartShape(imageObj *img, shapeObj *shape)
+{  
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
+
+  /* Table operations */
+  r->utfvalue = addToTable(r, shape);
+
+  return MS_SUCCESS;
+}
+
+/*
+ * Tells the renderer that the shape's rendering is done.
+ */
+int utfgridEndShape(imageObj *img, shapeObj *shape)
+{
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
+
+  r->utfvalue = -1;
   return MS_SUCCESS;
 }
 
@@ -329,43 +418,51 @@ int utfgridRenderGlyphs(imageObj *img, double x, double y, labelStyleObj *style,
   return MS_SUCCESS;
 }
 
-int utfgridRenderPolygon(imageObj *img, shapeObj *p, colorObj *color)
+/*
+ * Function that render polygons into UTFGrid.
+ */
+int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
 {
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
-  band_type value, test;
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  growTable(r->data);
+  /* utfvalue is set to -1 if the shape isn't in the table. */
+  if(r->utfvalue == -1) {
+    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderPolygon()");
+    return MS_FAILURE;
+  }
 
-  addToTable(r, p, value);
-
-  encodeForRendering(value);
-
-  polygon_adaptor_utf polygons(p, r->utfresolution);
+  /* Render the polygon */
+  polygon_adaptor_utf polygons(polygonshape, r->utfresolution);
 
   r->m_rasterizer.reset();
   r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
   r->m_rasterizer.add_path(polygons);
-  r->m_renderer_scanline.color(utfitem(value));
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
   mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
 
-int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
+/*
+ * Function that render lines into UTFGrid. Starts by looking if the line is a polygon  
+ * outline. Then draw it if it's not.
+ */
+int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linestyle)
 {
-  if(p->type == MS_SHAPE_POLYGON)
+  /* Shape type verification */
+  if(lineshape->type == MS_SHAPE_POLYGON)
     return MS_SUCCESS;
 
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
-  band_type value;
 
-  growTable(r->data);
+  /* utfvalue is set to -1 if the shape isn't in the table. */
+  if(r->utfvalue == -1) {
+    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
+    return MS_FAILURE;
+  }
 
-  addToTable(r, p, value);
-
-  encodeForRendering(value);
-
-  line_adaptor_utf lines(p, r->utfresolution);
+  /* Render the line */
+  line_adaptor_utf lines(lineshape, r->utfresolution);
 
   r->m_rasterizer.reset();
   r->m_rasterizer.filling_rule(mapserver::fill_non_zero);  
@@ -374,151 +471,123 @@ int utfgridRenderLine(imageObj *img, shapeObj *p, strokeStyleObj *stroke)
   } else {
     r->stroke->attach(lines);
   }
-  r->stroke->width(stroke->width);
+  r->stroke->width(linestyle->width);
   r->m_rasterizer.add_path(*r->stroke);
-  r->m_renderer_scanline.color(utfitem(value));
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
   mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
   return MS_SUCCESS;
 }
 
-// static mapserver::path_storage imageVectorSymbolAGG(symbolObj *symbol)
-// {
-//   mapserver::path_storage path;
-//   bool is_new=true;
-//   for(int i=0; i < symbol->numpoints; i++) {
-//     if((symbol->points[i].x == -99) && (symbol->points[i].y == -99)) { // (PENUP)
-//       is_new=true;
-//     } else {
-//       if(is_new) {
-//         path.move_to(symbol->points[i].x,symbol->points[i].y);
-//         is_new=false;
-//       } else {
-//         path.line_to(symbol->points[i].x,symbol->points[i].y);
-//       }
-//     }
-//   }
-//   return path;
-// }
+/*
+ * Function that allow vector symbol to be stored in a AGG path storage.
+ */
+static mapserver::path_storage imageVectorSymbolUTFGrid(symbolObj *symbol)
+{
+  mapserver::path_storage path;
+  int is_new=1;
 
+  for(int i=0; i < symbol->numpoints; i++) {
+    if((symbol->points[i].x == -99) && (symbol->points[i].y == -99))
+      is_new=1;
+
+    else {
+      if(is_new) {
+        path.move_to(symbol->points[i].x,symbol->points[i].y);
+        is_new=0;
+      } else {
+        path.line_to(symbol->points[i].x,symbol->points[i].y);
+      }
+    }
+  }
+  return path;
+}
+
+/*
+ * Function that render vector type symbols into UTFGrid.
+ */
 int utfgridRenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
 {
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  double ox = symbol->sizex * 0.5;
+  double oy = symbol->sizey * 0.5;
+
+  /* Pathing the symbol */
+  mapserver::path_storage path = imageVectorSymbolUTFGrid(symbol);
+
+  /* Transformation to the right size/scale. */
+  mapserver::trans_affine mtx;
+  mtx *= mapserver::trans_affine_translation(-ox,-oy);
+  mtx *= mapserver::trans_affine_scaling(style->scale/r->utfresolution);
+  mtx *= mapserver::trans_affine_rotation(-style->rotation);
+  mtx *= mapserver::trans_affine_translation(x/r->utfresolution, y/r->utfresolution);
+  path.transform(mtx);
+
+  /* Rendering the symbol. */
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(path);
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
   return MS_SUCCESS;
 }
 
-// int agg2RenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
-// {
-//   AGG2Renderer *r = AGG_RENDERER(img);
-//   double ox = symbol->sizex * 0.5;
-//   double oy = symbol->sizey * 0.5;
-
-//   mapserver::path_storage path = imageVectorSymbolAGG(symbol);
-//   mapserver::trans_affine mtx;
-//   mtx *= mapserver::trans_affine_translation(-ox,-oy);
-//   mtx *= mapserver::trans_affine_scaling(style->scale);
-//   mtx *= mapserver::trans_affine_rotation(-style->rotation);
-//   mtx *= mapserver::trans_affine_translation(x, y);
-//   path.transform(mtx);
-//     r->m_rasterizer_aa.reset();
-//     r->m_rasterizer_aa.filling_rule(mapserver::fill_even_odd);
-//     r->m_rasterizer_aa.add_path(path);
-//     r->m_renderer_scanline.color(aggColor(style->color));
-//     mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_poly, r->m_renderer_scanline);
-//   return MS_SUCCESS;
-// }
-
+/*
+ * Function that render Pixmap type symbols into UTFGrid.
+ */
 int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
 {
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+  rasterBufferObj *pixmap = symbol->pixmap_buffer;
+
+  /* Pathing the symbol BBox */
+  int ims_2 = MS_NINT(MS_MAX(pixmap->width,pixmap->height)*style->scale*1.415)/2+1;
+  mapserver::path_storage pixmap_bbox;
+  pixmap_bbox.move_to((x-ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
+  pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
+  pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
+  pixmap_bbox.line_to((x-ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
+
+  /* Rendering the symbol */
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(pixmap_bbox);
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
+
   return MS_SUCCESS;
 }
 
-// int agg2RenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
-// {
-//   AGG2Renderer *r = AGG_RENDERER(img);
-//   rasterBufferObj *pixmap = symbol->pixmap_buffer;
-//   assert(pixmap->type == MS_BUFFER_BYTE_RGBA);
-//   rendering_buffer b(pixmap->data.rgba.pixels,pixmap->width,pixmap->height,pixmap->data.rgba.row_step);
-//   pixel_format pf(b);
-
-//   r->m_rasterizer_aa.reset();
-//   r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
-//   if ( (style->rotation != 0 && style->rotation != MS_PI*2.)|| style->scale != 1) {
-//     mapserver::trans_affine image_mtx;
-//     image_mtx *= mapserver::trans_affine_translation(-(pf.width()/2.),-(pf.height()/2.));
-//     /*agg angles are antitrigonometric*/
-//     image_mtx *= mapserver::trans_affine_rotation(-style->rotation);
-//     image_mtx *= mapserver::trans_affine_scaling(style->scale);
-
-
-
-//     image_mtx *= mapserver::trans_affine_translation(x,y);
-//     image_mtx.invert();
-//     typedef mapserver::span_interpolator_linear<> interpolator_type;
-//     interpolator_type interpolator(image_mtx);
-//     mapserver::span_allocator<color_type> sa;
-
-//     // "hardcoded" bilinear filter
-//     //------------------------------------------
-//     typedef mapserver::span_image_filter_rgba_bilinear_clip<pixel_format, interpolator_type> span_gen_type;
-//     span_gen_type sg(pf, mapserver::rgba(0,0,0,0), interpolator);
-//     mapserver::path_storage pixmap_bbox;
-//     int ims_2 = MS_NINT(MS_MAX(pixmap->width,pixmap->height)*style->scale*1.415)/2+1;
-
-//     pixmap_bbox.move_to(x-ims_2,y-ims_2);
-//     pixmap_bbox.line_to(x+ims_2,y-ims_2);
-//     pixmap_bbox.line_to(x+ims_2,y+ims_2);
-//     pixmap_bbox.line_to(x-ims_2,y+ims_2);
-
-//     r->m_rasterizer_aa.add_path(pixmap_bbox);
-//     mapserver::render_scanlines_aa(r->m_rasterizer_aa, r->sl_poly, r->m_renderer_base, sa, sg);
-//   } else {
-//     //just copy the image at the correct location (we place the pixmap on
-//     //the nearest integer pixel to avoid blurring)
-//     r->m_renderer_base.blend_from(pf,0,MS_NINT(x-pixmap->width/2.),MS_NINT(y-pixmap->height/2.));
-//   }
-//   return MS_SUCCESS;
-// }
-
+/*
+ * Function that render ellipse type symbols into UTFGrid.
+ */
 int utfgridRenderEllipseSymbol(imageObj *image, double x, double y, symbolObj *symbol, symbolStyleObj * style)
 {
-  // UTFGridRenderer *r = UTFGRID_RENDERER(image);
-  // band_type value;
+  UTFGridRenderer *r = UTFGRID_RENDERER(image);
 
-  // growTable(r->data);
+  /* Pathing the symbol. */
+  mapserver::path_storage path;
+  mapserver::ellipse ellipse(x/r->utfresolution,y/r->utfresolution,symbol->sizex*style->scale/2/r->utfresolution,symbol->sizey*style->scale/2/r->utfresolution);
+  path.concat_path(ellipse);
+ 
+  /* Rotation if necessary. */
+  if( style->rotation != 0) {
+    mapserver::trans_affine mtx;
+    mtx *= mapserver::trans_affine_translation(-x/r->utfresolution,-y/r->utfresolution);
+    mtx *= mapserver::trans_affine_rotation(-style->rotation);
+    mtx *= mapserver::trans_affine_translation(x/r->utfresolution,y/r->utfresolution);
+    path.transform(mtx);
+  }
 
-  // addToTable(r, p, value);
+  /* Rendering the symbol. */
+  r->m_rasterizer.reset();
+  r->m_rasterizer.filling_rule(mapserver::fill_even_odd);
+  r->m_rasterizer.add_path(path);
+  r->m_renderer_scanline.color(utfitem(r->utfvalue));
+  mapserver::render_scanlines(r->m_rasterizer, r->sl_utf, r->m_renderer_scanline);
 
-  // encodeForRendering(value);
-
-  // mapserver::path_storage path;
-  // mapserver::ellipse ellipse(x,y,symbol->sizex*style->scale/2,symbol->sizey*style->scale/2);
-  // path.concat_path(ellipse);
-  // if( style->rotation != 0) {
-  //   mapserver::trans_affine mtx;
-  //   mtx *= mapserver::trans_affine_translation(-x,-y);
-  //   mtx *= mapserver::trans_affine_rotation(-style->rotation);
-  //   mtx *= mapserver::trans_affine_translation(x,y);
-  //   path.transform(mtx);
-  // }
   return MS_SUCCESS;
 }
-
-// int agg2RenderEllipseSymbol(imageObj *image, double x, double y, symbolObj *symbol, symbolStyleObj * style)
-// {
-//   if( style->rotation != 0) {
-//     mapserver::trans_affine mtx;
-//     mtx *= mapserver::trans_affine_translation(-x,-y);
-//     mtx *= mapserver::trans_affine_rotation(-style->rotation);
-//     mtx *= mapserver::trans_affine_translation(x,y);
-//     path.transform(mtx);
-//   }
-//     r->m_rasterizer_aa.reset();
-//     r->m_rasterizer_aa.filling_rule(mapserver::fill_even_odd);
-//     r->m_rasterizer_aa.add_path(path);
-//     r->m_renderer_scanline.color(aggColor(style->color));
-//     mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_line, r->m_renderer_scanline);
-//   return MS_SUCCESS;
-// }
 
 int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style) 
 {
@@ -533,12 +602,17 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
 //     return MS_FAILURE;
 
 //   int unicode;
-//   font_curve_type m_curves(cache->m_fman.path_adaptor());
 
 //   msUTF8ToUniChar(symbol->character, &unicode);
 //   const mapserver::glyph_cache* glyph = cache->m_fman.glyph(unicode);
 //   double ox = (glyph->bounds.x1 + glyph->bounds.x2) / 2.;
 //   double oy = (glyph->bounds.y1 + glyph->bounds.y2) / 2.;
+
+  // mapserver::path_storage pixmap_bbox;
+  // pixmap_bbox.move_to((x-ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
+  // pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y-ims_2)/r->utfresolution);
+  // pixmap_bbox.line_to((x+ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
+  // pixmap_bbox.line_to((x-ims_2)/r->utfresolution,(y+ims_2)/r->utfresolution);
 
 //   mapserver::trans_affine mtx = mapserver::trans_affine_translation(-ox, -oy);
 //   if(style->rotation)
@@ -550,16 +624,6 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
 //   cache->m_fman.init_embedded_adaptors(glyph, 0,0);
 //   mapserver::conv_transform<font_curve_type, mapserver::trans_affine> trans_c(m_curves, mtx);
 //   glyphs.concat_path(trans_c);
-//   if (style->outlinecolor) {
-//     r->m_rasterizer_aa.reset();
-//     r->m_rasterizer_aa.filling_rule(mapserver::fill_non_zero);
-//     mapserver::conv_contour<mapserver::path_storage> cc(glyphs);
-//     cc.auto_detect_orientation(true);
-//     cc.width(style->outlinewidth + 1);
-//     r->m_rasterizer_aa.add_path(cc);
-//     r->m_renderer_scanline.color(aggColor(style->outlinecolor));
-//     mapserver::render_scanlines(r->m_rasterizer_aa, r->sl_line, r->m_renderer_scanline);
-//   }
 
 //   if (style->color) {
 //     r->m_rasterizer_aa.reset();
@@ -572,6 +636,10 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
 
 // }
 
+/*
+ * Add the necessary functions for UTFGrid to the renderer VTable.
+ */
+
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
   renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
@@ -581,7 +649,10 @@ int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
   renderer->saveImage = &utfgridSaveImage;
 
   renderer->startLayer = &utfgridStartLayer;
-  renderer->endLayer = &utfgridEndLayer;
+  renderer->endLayer = &utfgridEndLayer;  
+
+  renderer->startShape = &utfgridStartShape;
+  renderer->endShape = &utfgridEndShape;
 
   renderer->getTruetypeTextBBox = &utfgridGetTruetypeTextBBox;
 
@@ -592,6 +663,8 @@ int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
   renderer->renderPixmapSymbol = &utfgridRenderPixmapSymbol;
   renderer->renderEllipseSymbol = &utfgridRenderEllipseSymbol;
   renderer->renderTruetypeSymbol = &utfgridRenderTruetypeSymbol;
+
+  renderer->loadImageFromFile = msLoadMSRasterBufferFromFile;
 
   return MS_SUCCESS;
 }
