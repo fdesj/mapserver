@@ -569,6 +569,8 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
  */
 int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
 {
+  renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
+
   renderer->createImage = &utfgridCreateImage;
   renderer->freeImage = &utfgridFreeImage;
   renderer->saveImage = &utfgridSaveImage;
