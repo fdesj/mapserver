@@ -36,11 +36,12 @@
 class line_adaptor_utf
 {
 public:
-  line_adaptor_utf(shapeObj *shape, int utfresolution):s(shape),utfres(utfresolution) {
+  line_adaptor_utf(shapeObj *shape, int utfresolution):s(shape) {
     m_line=s->line; /*first line*/
     m_point=m_line->point; /*current vertex is first vertex of first line*/
     m_lend=&(s->line[s->numlines]); /*pointer to after last line*/
     m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last vertex of first line*/
+    utfres = utfresolution;
   }
 
   /* a class with virtual functions should also provide a virtual destructor */
@@ -533,6 +534,7 @@ public:
                    mapserver::int8u cover)
   {
     value_type* p;
+
     do
     {
       p = (value_type*) 

@@ -49,7 +49,7 @@ typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 
 static utfpix32 UTF_WATER = utfpix32(32, 0);
 
-#define utfitem(c) utfpix32(c, 0)
+#define utfitem(c) utfpix32(c, 1)
 
 struct shapeData 
 {
@@ -100,7 +100,7 @@ public:
 /*
  * Encode to avoid unavailable char in the JSON
  */
-int encodeForRendering(unsigned int toencode)
+unsigned int encodeForRendering(unsigned int toencode)
 {
   unsigned int encoded;
   encoded = toencode + 32;
@@ -234,7 +234,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
 
   r->duplicates = strcmp("false", msGetOutputFormatOption(format, "DUPLICATES", "true"));
 
-  r->utfvalue = -1;
+  r->utfvalue = 0;
 
   r->buffer = (band_type*)msSmallMalloc(width/r->utfresolution * height/r->utfresolution * sizeof(band_type));
 
@@ -420,7 +420,7 @@ int utfgridEndShape(imageObj *img, shapeObj *shape)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);  
 
-  r->utfvalue = -1;
+  r->utfvalue = 0;
   return MS_SUCCESS;
 }
 
@@ -442,7 +442,7 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   /* utfvalue is set to -1 if the shape isn't in the table. */
-  if(r->utfvalue == -1) {
+  if(r->utfvalue == 0) {
     msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderPolygon()");
     return MS_FAILURE;
   }
@@ -463,7 +463,7 @@ int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linest
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   /* utfvalue is set to -1 if the shape isn't in the table. */
-  if(r->utfvalue == -1) {
+  if(r->utfvalue == 0) {
     msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
   }
