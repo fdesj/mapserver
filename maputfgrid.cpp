@@ -40,8 +40,7 @@
 
 typedef mapserver::int32u band_type;
 typedef mapserver::row_ptr_cache<band_type> rendering_buffer;
-typedef blender_utf<utfpix32> blender_utf32;
-typedef pixfmt_alpha_blend_utf<blender_utf32, rendering_buffer> pixfmt_utf32;
+typedef pixfmt_alpha_blend_utf<utfpix32, rendering_buffer> pixfmt_utf32;
 typedef mapserver::rasterizer_scanline_aa<> rasterizer_scanline;
 typedef mapserver::renderer_base<pixfmt_utf32> renderer_base;
 typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
