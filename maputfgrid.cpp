@@ -359,6 +359,9 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   /* Print the buffer, also */  
   for(row=0; row<img->height/renderer->utfresolution; row++) {
     
+    wchar_t s[img->width/renderer->utfresolution + 1];
+    wchar_t *ptrs;
+    ptrs = s;
     /* Needs comma between each lines but JSON must not start with a comma. */
     if(row!=0)
       printf(",");
@@ -373,14 +376,16 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       } 
 
       /* Convertion to UTF-8 encoding */
-      wchar_t s[2]= {pixelid};
-      s[1] = '\0';  
-      char * utf8;
-      utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
-      printf("%s", utf8);
-      msFree(utf8);
+      *ptrs = pixelid;
+      ptrs++;
+      
+      
     }
-
+    *ptrs = '\0';  
+    char * utf8;
+    utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
+    printf("%s", utf8);
+    msFree(utf8);
     printf("\"");
   }
 
