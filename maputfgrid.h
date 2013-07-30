@@ -32,8 +32,6 @@
 
 /*
  * Using AGG templates to create UTFGrid pixel.
- *
- * Reference : agg_pixfmt_gray.h
  */
 
 //==================================================================utfpix32
