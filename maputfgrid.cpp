@@ -40,14 +40,14 @@
 
 typedef mapserver::int32u band_type;
 typedef mapserver::row_ptr_cache<band_type> rendering_buffer;
-typedef pixfmt_alpha_blend_utf<utfpix32, rendering_buffer> pixfmt_utf32;
-typedef mapserver::rasterizer_scanline_aa<> rasterizer_scanline;
+typedef pixfmt_utf<utfpix32, rendering_buffer> pixfmt_utf32;
 typedef mapserver::renderer_base<pixfmt_utf32> renderer_base;
+typedef mapserver::rasterizer_scanline_aa<> rasterizer_scanline;
 typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 
-static utfpix32 UTF_WATER = utfpix32(32, 0);
+static utfpix32 UTF_WATER = utfpix32(32);
 
-#define utfitem(c) utfpix32(c, 0)
+#define utfitem(c) utfpix32(c)
 
 struct shapeData 
 {

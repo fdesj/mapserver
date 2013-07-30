@@ -31,9 +31,7 @@
 #include "renderers/agg/include/agg_rendering_buffer.h"
 
 /*
- * Using AGG templates to create UTFGrid pixel. This pixel could also be used
- * as a gray pixel using int32u. The only difference is that color blender is
- * disabled.
+ * Using AGG templates to create UTFGrid pixel.
  *
  * Reference : agg_pixfmt_gray.h
  */
@@ -45,138 +43,31 @@ struct utfpix32
   typedef mapserver::int64u calc_type;
   typedef mapserver::int64  long_type;
 
-  enum base_scale_e
-  {
-    base_shift = 16,
-    base_scale = 1 << base_shift,
-    base_mask  = base_scale - 1
-  };
   typedef utfpix32 self_type;
 
   value_type v;
-  // value_type a;
 
   //--------------------------------------------------------------------
   utfpix32() {}
 
   //--------------------------------------------------------------------
-  utfpix32(unsigned v_, unsigned a_=base_mask) :
-    v(mapserver::int32u(v_)), a(mapserver::int32u(a_)) {}
+  utfpix32(unsigned v_) :
+    v(mapserver::int32u(v_)) {}
 
   //--------------------------------------------------------------------
-  utfpix32(const self_type& c, unsigned a_) :
-    v(c.v), a(value_type(a_)) {}
+  utfpix32(const self_type& c) :
+    v(c.v) {}
 
   //--------------------------------------------------------------------
   void clear()
   {
-    v = a = 0;
+    v = 0;
   }
-
-  //--------------------------------------------------------------------
-  const self_type& transparent()
-  {
-    a = 0;
-    return *this;
-  }
-
-  //--------------------------------------------------------------------
-  void opacity(double a_)
-  {
-    // if(a_ < 0.0) a_ = 0.0;
-    a_ = 1.0;
-    // a = (value_type)mapserver::uround(a_ * double(base_mask));
-  }
-
-  //--------------------------------------------------------------------
-  double opacity() const
-  {
-    return 1;
-  }
-
-  //--------------------------------------------------------------------
-  const self_type& premultiply()
-  {
-    // if(a == base_mask) return *this;
-    if(a == 0) 
-    {
-      v = 0;
-      return *this;
-    }
-    v = value_type((calc_type(v) * a) >> base_shift);
-    return *this;
-  }
-
-  //--------------------------------------------------------------------
-  const self_type& premultiply(unsigned a_)
-  {
-    // if(a == base_mask && a_ >= base_mask) return *this;
-    if(a == 0 || a_ == 0) 
-    {
-      v = a = 0;
-      return *this;
-    }
-    calc_type v_ = (calc_type(v) * a_) / a;
-    v = value_type((v_ > a_) ? a_ : v_);
-    a = value_type(a_);
-    return *this;
-  }
-
-  //--------------------------------------------------------------------
-  const self_type& demultiply()
-  {
-    // if(a == base_mask) return *this;
-    if(a == 0) 
-    {
-      v = 0;
-      return *this;
-    }
-    // calc_type v_ = (calc_type(v) * base_mask) / a;
-    // v = value_type((v_ > base_mask) ? base_mask : v_);
-    return *this;
-  }
-
-  //--------------------------------------------------------------------
-  self_type gradient(self_type c, double k) const
-  {
-    self_type ret;
-    calc_type ik = mapserver::uround(k * base_scale);
-    ret.v = value_type(calc_type(v) + (((calc_type(c.v) - v) * ik) >> base_shift));
-    // ret.a = value_type(calc_type(a) + (((calc_type(c.a) - a) * ik) >> base_shift));
-    return ret;
-  }
-
-  //--------------------------------------------------------------------
-  AGG_INLINE void add(const self_type& c, unsigned cover)
-  {
-    calc_type cv, ca;
-    if(cover == mapserver::cover_mask) 
-    {
-      // if(c.a == base_mask)
-      // {
-        // *this = c;
-      // }
-      // else 
-      // {
-        // cv = v + c.v; v = (cv > calc_type(base_mask)) ? calc_type(base_mask) : cv;
-        // ca = a + c.a; a = (ca > calc_type(base_mask)) ? calc_type(base_mask) : ca;
-      // }
-    }
-    else 
-    {
-      cv = v + ((c.v * cover + mapserver::cover_mask/2) >> mapserver::cover_shift);
-      // ca = a + ((c.a * cover + mapserver::cover_mask/2) >> mapserver::cover_shift);
-      // v = (cv > calc_type(base_mask)) ? calc_type(base_mask) : cv;
-      // a = (ca > calc_type(base_mask)) ? calc_type(base_mask) : ca;
-    }
-  }
-
-  static self_type no_color() { return self_type(0,0); }
 };
 
-//=================================================pixfmt_alpha_blend_utf
+//=================================================pixfmt_utf
 template<class ColorT, class RenBuf, unsigned Step=1, unsigned Offset=0>
-class pixfmt_alpha_blend_utf
+class pixfmt_utf
 {
 public:
   typedef RenBuf   rbuf_type;
@@ -184,12 +75,8 @@ public:
   typedef ColorT                            color_type;
   typedef typename color_type::value_type   value_type;
   typedef typename color_type::calc_type    calc_type;
-  typedef int                               order_type; // A fake one
   enum base_scale_e
   {
-    base_shift = color_type::base_shift,
-    base_scale = color_type::base_scale,
-    // base_mask  = color_type::base_mask,
     pix_width  = sizeof(value_type),
     pix_step   = Step,
     pix_offset = Offset
@@ -201,26 +88,19 @@ private:
                                            const color_type& c, 
                                            unsigned cover)
   {
-    // if (c.a) 
-    // {
-      // calc_type alpha = (calc_type(c.a) * (cover + 1)) >> 8;
       *p = c.v;
-    // }
   }
 
   static AGG_INLINE void copy_or_blend_pix(value_type* p, 
                                            const color_type& c)
   {
-    // if (c.a) 
-    // {
       *p = c.v;
-    // }
   }
 
 public:
-  pixfmt_alpha_blend_utf() : m_rbuf(0) {}
+  pixfmt_utf() : m_rbuf(0) {}
   //--------------------------------------------------------------------
-  explicit pixfmt_alpha_blend_utf(rbuf_type& rb) :
+  explicit pixfmt_utf(rbuf_type& rb) :
     m_rbuf(&rb)
   {}
   void attach(rbuf_type& rb) { m_rbuf = &rb; }
@@ -358,190 +238,6 @@ public:
     while(--len);
   }
 
-
-  //--------------------------------------------------------------------
-  void blend_solid_hspan(int x, int y, 
-                         unsigned len, 
-                         const color_type& c, 
-                         const mapserver::int8u* covers)
-  {
-    // if (c.a) 
-    // {
-      value_type* p = (value_type*) 
-          m_rbuf->row_ptr(x, y, len) + x * Step + Offset;
-
-      do
-      {
-        // calc_type alpha = (calc_type(c.a) * (calc_type(*covers) + 1)) >> 8;
-        *p = c.v;
-        p += Step;
-        ++covers;
-      }
-      while(--len);
-    // }
-  }
-
-
-  //--------------------------------------------------------------------
-  void blend_solid_vspan(int x, int y, 
-                         unsigned len, 
-                         const color_type& c, 
-                         const mapserver::int8u* covers)
-  {
-    // if (c.a) 
-    // {
-      do
-      {
-        // calc_type alpha = (calc_type(c.a) * (calc_type(*covers) + 1)) >> 8;
-
-        value_type* p = (value_type*) 
-            m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
-
-        *p = c.v;
-        ++covers;
-      }
-      while(--len);
-    // }
-  }
-
-
-  //--------------------------------------------------------------------
-  void copy_color_hspan(int x, int y, 
-                        unsigned len, 
-                        const color_type* colors)
-  {
-    value_type* p = (value_type*) 
-        m_rbuf->row_ptr(x, y, len) + x * Step + Offset;
-
-    do
-    {
-      *p = colors->v;
-      p += Step;
-      ++colors;
-    }
-    while(--len);
-  }
-
-
-  //--------------------------------------------------------------------
-  void copy_color_vspan(int x, int y, 
-                        unsigned len, 
-                        const color_type* colors)
-  {
-    do
-    {
-      value_type* p = (value_type*) 
-          m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
-      *p = colors->v;
-      ++colors;
-    }
-    while(--len);
-  }
-
-
-  //--------------------------------------------------------------------
-  void blend_color_hspan(int x, int y, 
-                         unsigned len, 
-                         const color_type* colors, 
-                         const mapserver::int8u* covers, 
-                         mapserver::int8u cover)
-  {
-    value_type* p = (value_type*) 
-        m_rbuf->row_ptr(x, y, len) + x * Step + Offset;
-
-    if(covers) 
-    {
-      do
-      {
-        copy_or_blend_pix(p, *colors++, *covers++);
-        p += Step;
-      }
-      while(--len);
-    } 
-    else 
-    {
-      if(cover == 255) {
-        do
-        {
-          // if(colors->a == base_mask)
-          // {
-          //   *p = colors->v;
-          // }
-          // else
-          // {
-            copy_or_blend_pix(p, *colors);
-          // }
-          p += Step;
-          ++colors;
-        }
-        while(--len);
-      } 
-      else 
-      {
-        do
-        {
-          copy_or_blend_pix(p, *colors++, cover);
-          p += Step;
-        }
-        while(--len);
-      }
-    }
-  }
-
-
-  //--------------------------------------------------------------------
-  void blend_color_vspan(int x, int y, 
-                         unsigned len, 
-                         const color_type* colors, 
-                         const mapserver::int8u* covers, 
-                         mapserver::int8u cover)
-  {
-    value_type* p;
-    if(covers) 
-    {
-      do
-      {
-        p = (value_type*) 
-            m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
-
-        copy_or_blend_pix(p, *colors++, *covers++);
-      }
-      while(--len);
-    } 
-    else 
-    {
-      if(cover == 255) 
-      {
-        do
-        {
-          p = (value_type*) 
-              m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
-
-          // if(colors->a == base_mask)
-          // {
-          //   *p = colors->v;
-          // }
-          // else
-          // {
-            copy_or_blend_pix(p, *colors);
-          // }
-          ++colors;
-        }
-        while(--len);
-      } 
-      else 
-      {
-        do
-        {
-          p = (value_type*) 
-              m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
-
-          copy_or_blend_pix(p, *colors++, cover);
-        }
-        while(--len);
-      }
-    }
-  }
 
 private:
   rbuf_type* m_rbuf;
