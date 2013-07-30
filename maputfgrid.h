@@ -132,44 +132,6 @@ public:
   const mapserver::int8u* row_ptr(int y) const { return m_rbuf->row_ptr(y); }
   row_data                row(int y)     const { return m_rbuf->row(y); }
 
-  const mapserver::int8u* pix_ptr(int x, int y) const
-  {
-    return m_rbuf->row_ptr(y) + x * Step + Offset;
-  }
-
-  mapserver::int8u* pix_ptr(int x, int y)
-  {
-    return m_rbuf->row_ptr(y) + x * Step + Offset;
-  }
-
-  //--------------------------------------------------------------------
-  AGG_INLINE static void make_pix(mapserver::int8u* p, const color_type& c)
-  {
-    *(value_type*)p = c.v;
-  }
-
-  //--------------------------------------------------------------------
-  AGG_INLINE color_type pixel(int x, int y) const
-  {
-    value_type* p = (value_type*)m_rbuf->row_ptr(y) + x * Step + Offset;
-    return color_type(*p);
-  }
-
-  //--------------------------------------------------------------------
-  AGG_INLINE void copy_pixel(int x, int y, const color_type& c)
-  {
-    *((value_type*)m_rbuf->row_ptr(x, y, 1) + x * Step + Offset) = c.v;
-  }
-
-  //--------------------------------------------------------------------
-  AGG_INLINE void blend_pixel(int x, int y, const color_type& c, mapserver::int8u cover)
-  {
-    copy_or_blend_pix((value_type*) 
-                       m_rbuf->row_ptr(x, y, 1) + x * Step + Offset, 
-                       c, 
-                       cover);
-  }
-
 
   //--------------------------------------------------------------------
   AGG_INLINE void copy_hline(int x, int y, 
