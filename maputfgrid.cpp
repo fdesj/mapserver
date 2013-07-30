@@ -38,7 +38,6 @@
 #include "renderers/agg/include/agg_conv_stroke.h"
 #include "renderers/agg/include/agg_ellipse.h"
 
-
 typedef mapserver::int32u band_type;
 typedef mapserver::row_ptr_cache<band_type> rendering_buffer;
 typedef blender_utf<utfpix32> blender_utf32;
@@ -49,7 +48,7 @@ typedef mapserver::renderer_scanline_bin_solid<renderer_base> renderer_scanline;
 
 static utfpix32 UTF_WATER = utfpix32(32, 0);
 
-#define utfitem(c) utfpix32(c, 1)
+#define utfitem(c) utfpix32(c, 0)
 
 struct shapeData 
 {
@@ -63,6 +62,81 @@ struct lookupTable {
   shapeData  *table;
   int size;
   int counter;
+};
+
+/*
+ * UTFGrid specific polygon adaptor.
+ */
+class polygon_adaptor_utf:public polygon_adaptor
+{
+public:
+  polygon_adaptor_utf(shapeObj *shape,int utfres):polygon_adaptor(shape) 
+  {
+    utfresolution = utfres;
+  }
+
+  virtual unsigned vertex(double* x, double* y) 
+  {
+    if(m_point < m_pend) {
+      bool first = m_point == m_line->point;
+      *x = m_point->x/utfresolution;
+      *y = m_point->y/utfresolution;
+      m_point++;
+      return first ? mapserver::path_cmd_move_to : mapserver::path_cmd_line_to;
+    }
+    *x = *y = 0.0;
+    if(!m_stop) {
+
+      m_line++;
+      if(m_line>=m_lend) {
+        m_stop=true;
+        return mapserver::path_cmd_end_poly;
+      }
+
+      m_point=m_line->point;
+      m_pend=&(m_line->point[m_line->numpoints]);
+      return mapserver::path_cmd_end_poly;
+    }
+    return mapserver::path_cmd_stop;
+  }
+  
+private:
+  int utfresolution;
+};
+
+/*
+ * UTFGrid specific line adaptor.
+ */
+class line_adaptor_utf:public line_adaptor
+{
+public:
+  line_adaptor_utf(shapeObj *shape,int utfres):line_adaptor(shape) 
+  {
+    utfres = utfresolution;
+  }
+
+  virtual unsigned vertex(double* x, double* y)
+  {
+    if(m_point < m_pend) {
+      bool first = m_point == m_line->point;
+      *x = m_point->x/utfresolution;
+      *y = m_point->y/utfresolution;
+      m_point++;
+      return first ? mapserver::path_cmd_move_to : mapserver::path_cmd_line_to;
+    }
+    m_line++;
+    *x = *y = 0.0;
+    if(m_line>=m_lend) 
+      return mapserver::path_cmd_stop; 
+
+    m_point=m_line->point;
+    m_pend=&(m_line->point[m_line->numpoints]);
+
+    return vertex(x,y);
+  }
+
+private:
+  int utfresolution;
 };
 
 class UTFGridRenderer {
@@ -244,7 +318,6 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->m_renderer_base.attach(r->m_pixel_format);
   r->m_renderer_scanline.attach(r->m_renderer_base);
   r->m_renderer_base.clear(UTF_WATER);
-  r->m_rasterizer.gamma(mapserver::gamma_none());
 
   r->utflayer = NULL;
 

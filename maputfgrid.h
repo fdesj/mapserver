@@ -31,127 +31,6 @@
 #include "renderers/agg/include/agg_rendering_buffer.h"
 
 /*
- * Same as AGG only added utfresolution support
- */
-class line_adaptor_utf
-{
-public:
-  line_adaptor_utf(shapeObj *shape, int utfresolution):s(shape) {
-    m_line=s->line; /*first line*/
-    m_point=m_line->point; /*current vertex is first vertex of first line*/
-    m_lend=&(s->line[s->numlines]); /*pointer to after last line*/
-    m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last vertex of first line*/
-    utfres = utfresolution;
-  }
-
-  /* a class with virtual functions should also provide a virtual destructor */
-  virtual ~line_adaptor_utf() {}
-
-  void rewind(unsigned) {
-    m_line=s->line; /*first line*/
-    m_point=m_line->point; /*current vertex is first vertex of first line*/
-    m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last vertex of first line*/
-  }
-
-  virtual unsigned vertex(double* x, double* y) {
-    if(m_point < m_pend) {
-      /*here we treat the case where a real vertex is returned*/
-      bool first = m_point == m_line->point; /*is this the first vertex of a line*/
-      *x = m_point->x/utfres;
-      *y = m_point->y/utfres;
-      m_point++;
-      return first ? mapserver::path_cmd_move_to : mapserver::path_cmd_line_to;
-    }
-    /*if here, we're at the end of a line*/
-    m_line++;
-    *x = *y = 0.0;
-    if(m_line>=m_lend) /*is this the last line of the shapObj. normally,
-        (m_line==m_lend) should be a sufficient test, as the caller should not call
-        this function if a previous call returned path_cmd_stop.*/
-      return mapserver::path_cmd_stop; /*no more points to process*/
-
-    /*if here, there are more lines in the shapeObj, continue with next one*/
-    m_point=m_line->point; /*pointer to first point of next line*/
-    m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last point of next line*/
-
-    return vertex(x,y); /*this will return the first point of the next line*/
-  }
-private:
-  int utfres;
-  shapeObj *s;
-  lineObj *m_line, /*current line pointer*/
-          *m_lend; /*points to after the last line*/
-  pointObj *m_point, /*current point*/
-           *m_pend; /*points to after last point of current line*/
-};
-
-class polygon_adaptor_utf
-{
-public:
-  polygon_adaptor_utf(shapeObj *shape, int utfresolution):s(shape),m_stop(false),utfres(utfresolution) {
-    m_line=s->line; /*first lines*/
-    m_point=m_line->point; /*first vertex of first line*/
-    m_lend=&(s->line[s->numlines]); /*pointer to after last line*/
-    m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last vertex of first line*/
-  }
-
-  /* a class with virtual functions should also provide a virtual destructor */
-  virtual ~polygon_adaptor_utf() {}
-
-  void rewind(unsigned) {
-    /*reset pointers*/
-    m_stop=false;
-    m_line=s->line;
-    m_point=m_line->point;
-    m_pend=&(m_line->point[m_line->numpoints]);
-  }
-
-  virtual unsigned vertex(double* x, double* y) {
-    if(m_point < m_pend) {
-      /*if here, we have a real vertex*/
-      bool first = m_point == m_line->point;
-      *x = m_point->x/utfres;
-      *y = m_point->y/utfres;
-      m_point++;
-      return first ? mapserver::path_cmd_move_to : mapserver::path_cmd_line_to;
-    }
-    *x = *y = 0.0;
-    if(!m_stop) {
-      /*if here, we're after the last vertex of the current line
-       * we return the command to close the current polygon*/
-      m_line++;
-      if(m_line>=m_lend) {
-        /*if here, we've finished all the vertexes of the shape.
-         * we still return the command to close the current polygon,
-         * but set m_stop so the subsequent call to vertex() will return
-         * the stop command*/
-        m_stop=true;
-        return mapserver::path_cmd_end_poly;
-      }
-      /*if here, there's another line in the shape, so we set the pointers accordingly
-       * and return the command to close the current polygon*/
-      m_point=m_line->point; /*first vertex of next line*/
-      m_pend=&(m_line->point[m_line->numpoints]); /*pointer to after last vertex of next line*/
-      return mapserver::path_cmd_end_poly;
-    }
-    /*if here, a previous call to vertex informed us that we'd consumed all the vertexes
-     * of the shape. return the command to stop processing this shape*/
-    return mapserver::path_cmd_stop;
-  }
-private:
-  int utfres;
-  shapeObj *s;
-  double ox,oy;
-  lineObj *m_line, /*pointer to current line*/
-          *m_lend; /*pointer to after last line of the shape*/
-  pointObj *m_point, /*pointer to current vertex*/
-           *m_pend; /*pointer to after last vertex of current line*/
-  bool m_stop; /*should next call return stop command*/
-};
-
-
-
-/*
  * Using AGG templates to create UTFGrid pixel. This pixel could also be used
  * as a gray pixel using int32u. The only difference is that color blender is
  * disabled.
@@ -306,7 +185,7 @@ template<class ColorT> struct blender_utf
   static AGG_INLINE void blend_pix(value_type* p, unsigned cv, 
                                    unsigned alpha, unsigned cover=0)
   {
-    *p = (value_type)((((cv - calc_type(*p)) * alpha) + (calc_type(*p) << base_shift)) >> base_shift);
+    // *p = (value_type)((((cv - calc_type(*p)) * alpha) + (calc_type(*p) << base_shift)) >> base_shift);
   }
 };
 
@@ -533,11 +412,9 @@ public:
                    const color_type& c, 
                    mapserver::int8u cover)
   {
-    value_type* p;
-
     do
     {
-      p = (value_type*) 
+      value_type* p = (value_type*) 
           m_rbuf->row_ptr(x, y++, 1) + x * Step + Offset;
 
       *p = c.v;
