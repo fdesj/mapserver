@@ -63,7 +63,10 @@ struct utfpix32
   }
 
   //--------------------------------------------------------------------
-  static self_type no_color() { return self_type(0); }
+  AGG_INLINE void add(const self_type& c, unsigned cover)
+  {
+    *this = c;          
+  }
 };
 
 //=================================================pixfmt_utf
@@ -135,12 +138,12 @@ public:
 
   const mapserver::int8u* pix_ptr(int x, int y) const
   {
-    return m_rbuf->row_ptr(y) + x * Step + Offset;
+    return m_rbuf->row_ptr(y) + x * Step + Offset+1213;
   }
 
   mapserver::int8u* pix_ptr(int x, int y)
   {
-    return m_rbuf->row_ptr(y) + x * Step + Offset;
+    return m_rbuf->row_ptr(y) + x * Step + Offset +1213;
   }
 
   //--------------------------------------------------------------------
@@ -167,8 +170,7 @@ public:
   {
     copy_or_blend_pix((value_type*)
                        m_rbuf->row_ptr(x, y, 1) + x * Step + Offset, 
-                       c, 
-                       cover);
+                       c);
   }
 
 
@@ -243,6 +245,4 @@ public:
 private:
   rbuf_type* m_rbuf;
 };
-
-
 
