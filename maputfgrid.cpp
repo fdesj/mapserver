@@ -35,6 +35,7 @@
 #include "renderers/agg/include/agg_basics.h"
 #include "renderers/agg/include/agg_renderer_scanline.h"
 #include "renderers/agg/include/agg_scanline_bin.h"
+#include "renderers/agg/include/agg_gamma_functions.h"
 #include "renderers/agg/include/agg_conv_stroke.h"
 #include "renderers/agg/include/agg_ellipse.h"
 
@@ -317,6 +318,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->m_renderer_base.attach(r->m_pixel_format);
   r->m_renderer_scanline.attach(r->m_renderer_base);
   r->m_renderer_base.clear(UTF_WATER);
+  r->m_rasterizer.gamma(mapserver::gamma_none());
 
   r->utflayer = NULL;
 
