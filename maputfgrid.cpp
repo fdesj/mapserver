@@ -50,15 +50,36 @@ static utfpix32 UTF_WATER = utfpix32(32);
 
 #define utfitem(c) utfpix32(c)
 
-struct shapeData 
+class shapeData 
 {
+public:
+  shapeData()
+  {
+    datavalues = NULL;
+    itemvalue = NULL;
+    utfvalue = 0;
+    serialid = 0;
+  }
+
+  ~shapeData(){}
+
   char *datavalues;
   char *itemvalue;
   band_type utfvalue;
   int serialid;
 };
 
-struct lookupTable {
+class lookupTable {
+public:
+  lookupTable()
+  {
+    table = new shapeData;
+    size = 1;
+    counter = 0;
+  }
+
+  ~lookupTable() {}
+
   shapeData  *table;
   int size;
   int counter;
@@ -149,6 +170,7 @@ public:
   {
     if(stroke)
       delete stroke;
+    delete data;
   }
 
   lookupTable *data;
@@ -195,10 +217,8 @@ unsigned int encodeForRendering(unsigned int toencode)
 lookupTable *initTable()
 {
   lookupTable *data;
-  data = (lookupTable *) msSmallMalloc(sizeof(lookupTable));
-  data->table = (shapeData *) msSmallCalloc(1,sizeof(shapeData));
-  data->counter = 0;
-  data->size = 1;
+  data = new lookupTable;
+
   return data;
 }
 
