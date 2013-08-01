@@ -1979,7 +1979,6 @@ int msDrawShape(mapObj *map, layerObj *layer, shapeObj *shape, imageObj *image, 
 
   if(shape->numlines == 0 || shape->type == MS_SHAPE_NULL) return MS_SUCCESS;
 
-  msDrawStartShape(map, layer, image, shape);
   c = shape->classindex;
 
   /* Before we do anything else, we will check for a rangeitem.
@@ -1994,11 +1993,13 @@ int msDrawShape(mapObj *map, layerObj *layer, shapeObj *shape, imageObj *image, 
   /* circle and point layers go through their own treatment */
   if(layer->type == MS_LAYER_CIRCLE) {
     if(msBindLayerToShape(layer, shape, drawmode) != MS_SUCCESS) return MS_FAILURE;
+    msDrawStartShape(map, layer, image, shape);
     ret = circleLayerDrawShape(map,image,layer,shape);
     msDrawEndShape(map,layer,image,shape);
     return ret;
   } else if(layer->type == MS_LAYER_POINT || layer->type == MS_LAYER_RASTER) {
     if(msBindLayerToShape(layer, shape, drawmode) != MS_SUCCESS) return MS_FAILURE;
+    msDrawStartShape(map, layer, image, shape);
     ret = pointLayerDrawShape(map,image,layer,shape,drawmode);
     msDrawEndShape(map,layer,image,shape);
     return ret;
@@ -2164,15 +2165,19 @@ int msDrawShape(mapObj *map, layerObj *layer, shapeObj *shape, imageObj *image, 
 
   switch(layer->type) {
     case MS_LAYER_ANNOTATION:
-      if(MS_DRAW_LABELS(drawmode))
+      if(MS_DRAW_LABELS(drawmode)) { 
+        msDrawStartShape(map, layer, image, shape);
         ret = annotationLayerDrawShape(map, image, layer, anno_shape);
+      }
       else
         ret = MS_SUCCESS;
       break;
     case MS_LAYER_LINE:
+      msDrawStartShape(map, layer, image, shape);
       ret = lineLayerDrawShape(map, image, layer, shape, anno_shape, unclipped_shape, style, drawmode);
       break;
     case MS_LAYER_POLYGON:
+      msDrawStartShape(map, layer, image, shape);
       ret = polygonLayerDrawShape(map, image, layer, shape, anno_shape, unclipped_shape, drawmode);
       break;
     case MS_LAYER_POINT:

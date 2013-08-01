@@ -78,7 +78,15 @@ public:
     counter = 0;
   }
 
-  ~lookupTable() {}
+  ~lookupTable() 
+  {
+    int i;
+    for(i=0;i<counter;i++) {
+    msFree(table[i].datavalues);
+    msFree(table[i].itemvalue);
+    }
+    msFree(table); 
+  }
 
   shapeData  *table;
   int size;
@@ -356,7 +364,6 @@ int utfgridFreeImage(imageObj *img)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  freeTable(r->data);  
   msFree(r->buffer);
   delete r;
 
@@ -381,9 +388,9 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   /* Print the buffer, also */  
   for(row=0; row<img->height/renderer->utfresolution; row++) {
     
-    wchar_t s[img->width/renderer->utfresolution + 1];
-    wchar_t *ptrs;
-    ptrs = s;
+    wchar_t string[img->width/renderer->utfresolution + 1];
+    wchar_t *stringptr;
+    stringptr = string;
     /* Needs comma between each lines but JSON must not start with a comma. */
     if(row!=0)
       printf(",");
@@ -396,30 +403,23 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       if(pixelid == 32) {
         waterPresence = 1;
       } 
-
-      /* Convertion to UTF-8 encoding */
-      *ptrs = pixelid;
-      ptrs++;
-      
-      
+      *stringptr = pixelid;
+      stringptr++;      
     }
-    *ptrs = '\0';  
+
+    /* Convertion to UTF-8 encoding */
+    *stringptr = '\0';  
     char * utf8;
-    utf8 = msConvertWideStringToUTF8 (s, "UCS-4LE");
+    utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
     printf("%s", utf8);
     msFree(utf8);
     printf("\"");
   }
 
-  printf("],\"keys\":[");
-
-  /* Print the water value if necessary */
-  if(waterPresence==1) 
-    printf("\"\",");
+  printf("],\"keys\":[\"\"");
 
   /* Prints the key specified */
   for(i=0;i<renderer->data->counter;i++) {  
-    if(i!=0)
       printf(",");
 
     if(renderer->useutfitem)
@@ -540,7 +540,7 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  /* utfvalue is set to -1 if the shape isn't in the table. */
+  /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
     msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderPolygon()");
     return MS_FAILURE;
@@ -561,7 +561,7 @@ int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linest
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
-  /* utfvalue is set to -1 if the shape isn't in the table. */
+  /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
     msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
@@ -590,6 +590,12 @@ int utfgridRenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symb
   double ox = symbol->sizex * 0.5;
   double oy = symbol->sizey * 0.5;
 
+  /* utfvalue is set to 0 if the shape isn't in the table. */
+  if(r->utfvalue == 0) {
+    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
+    return MS_FAILURE;
+  }  
+
   /* Pathing the symbol */
   mapserver::path_storage path = imageVectorSymbol(symbol);
 
@@ -615,6 +621,12 @@ int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symb
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
   rasterBufferObj *pixmap = symbol->pixmap_buffer;
 
+  /* utfvalue is set to 0 if the shape isn't in the table. */
+  if(r->utfvalue == 0) {
+    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
+    return MS_FAILURE;
+  }  
+
   /* Pathing the symbol BBox */
   mapserver::path_storage pixmap_bbox;
   double w, h;
@@ -637,6 +649,12 @@ int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symb
 int utfgridRenderEllipseSymbol(imageObj *img, double x, double y, symbolObj *symbol, symbolStyleObj * style)
 {
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
+
+  /* utfvalue is set to 0 if the shape isn't in the table. */
+  if(r->utfvalue == 0) {
+    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
+    return MS_FAILURE;
+  }  
 
   /* Pathing the symbol. */
   mapserver::path_storage path;

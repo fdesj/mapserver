@@ -245,4 +245,3 @@ public:
 private:
   rbuf_type* m_rbuf;
 };
-
