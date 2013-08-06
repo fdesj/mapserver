@@ -141,7 +141,7 @@ class line_adaptor_utf:public line_adaptor
 public:
   line_adaptor_utf(shapeObj *shape,int utfres):line_adaptor(shape) 
   {
-    utfres = utfresolution;
+    utfresolution = utfres;
   }
 
   virtual unsigned vertex(double* x, double* y)
@@ -456,7 +456,7 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
     printf("}}");
   }
   else {
-    msSetError(MS_MISCERR, "UTFITEM and UTFDATA arent set for the requested layer in the mapfile.", "utfgridSaveImage()");
+    msSetError(MS_MISCERR, "UTFITEM and/or UTFDATA arent set for the requested layer in the mapfile.", "utfgridSaveImage()");
     return MS_FAILURE;
   }
 
@@ -591,7 +591,7 @@ int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linest
   } else {
     r->stroke->attach(lines);
   }
-  r->stroke->width(linestyle->width);  
+  r->stroke->width(linestyle->width/r->utfresolution);  
   utfgridRenderPath(img, *r->stroke);
 
   return MS_SUCCESS;
