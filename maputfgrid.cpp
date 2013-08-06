@@ -2,7 +2,7 @@
  * $Id$
  *
  * Project:  MapServer
- * Purpose:  UTFGrid rendering functions (using AGG primitives)
+ * Purpose:  UTFGrid rendering functions (using AGG)
  * Author:   Francois Desjarlais
  *
  ******************************************************************************
@@ -80,11 +80,11 @@ public:
 
   ~lookupTable() 
   {
-    int i;
-    for(i=0;i<counter;i++) {
-    msFree(table[i].datavalues);
-    msFree(table[i].itemvalue);
-    }
+    // int i;
+    // for(i=0;i<counter;i++) {
+    //   msFree(table[i].datavalues);
+    //   msFree(table[i].itemvalue);
+    // }
     msFree(table); 
   }
 
@@ -186,6 +186,7 @@ public:
   int layerwatch;
   int renderlayer;
   int useutfitem;
+  int useutfdata;
   int duplicates;
   band_type utfvalue;
   layerObj *utflayer;
@@ -334,6 +335,8 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
 
   r->useutfitem = 0;
 
+  r->useutfdata = 0;
+
   r->duplicates = strcmp("false", msGetOutputFormatOption(format, "DUPLICATES", "true"));
 
   r->utfvalue = 0;
@@ -382,69 +385,80 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
 
-  printf("{\"grid\":[");
+  if(renderer->layerwatch>1)
+    return MS_FAILURE; 
 
-  waterPresence = 0;
-  /* Print the buffer, also */  
-  for(row=0; row<img->height/renderer->utfresolution; row++) {
-    
-    wchar_t string[img->width/renderer->utfresolution + 1];
-    wchar_t *stringptr;
-    stringptr = string;
-    /* Needs comma between each lines but JSON must not start with a comma. */
-    if(row!=0)
-      printf(",");
-    printf("\"");
-    for(col=0; col<img->width/renderer->utfresolution; col++) {
-      /* Get the datas from buffer. */
-      pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
+  if(renderer->useutfitem || renderer->useutfdata) {
 
-      /* A pixelid value of 32 means theres water so we need to specify it to add it in the JSON */
-      if(pixelid == 32) {
-        waterPresence = 1;
-      } 
-      *stringptr = pixelid;
-      stringptr++;      
+    printf("{\"grid\":[");
+
+    waterPresence = 0;
+    /* Print the buffer, also */  
+    for(row=0; row<img->height/renderer->utfresolution; row++) {
+      
+      wchar_t string[img->width/renderer->utfresolution + 1];
+      wchar_t *stringptr;
+      stringptr = string;
+      /* Needs comma between each lines but JSON must not start with a comma. */
+      if(row!=0)
+        printf(",");
+      printf("\"");
+      for(col=0; col<img->width/renderer->utfresolution; col++) {
+        /* Get the datas from buffer. */
+        pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
+
+        /* A pixelid value of 32 means theres water so we need to specify it to add it in the JSON */
+        if(pixelid == 32) {
+          waterPresence = 1;
+        } 
+        *stringptr = pixelid;
+        stringptr++;      
+      }
+
+      /* Convertion to UTF-8 encoding */
+      *stringptr = '\0';  
+      char * utf8;
+      utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
+      printf("%s", utf8);
+      msFree(utf8);
+      printf("\"");
     }
 
-    /* Convertion to UTF-8 encoding */
-    *stringptr = '\0';  
-    char * utf8;
-    utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
-    printf("%s", utf8);
-    msFree(utf8);
-    printf("\"");
+    printf("],\"keys\":[\"\"");
+
+    /* Prints the key specified */
+    for(i=0;i<renderer->data->counter;i++) {  
+        printf(",");
+
+      if(renderer->useutfitem)
+        printf("\"%s\"", renderer->data->table[i].itemvalue);
+      /* If no UTFITEM specified use the serial ID as the key */
+      else
+        printf("\"%i\"", renderer->data->table[i].serialid);
+    }
+
+    printf("],\"data\":{");
+
+    /* Print the datas */
+    if(renderer->useutfdata) {
+      for(i=0;i<renderer->data->counter;i++) {
+        if(i!=0)
+          printf(",");
+
+        if(renderer->useutfitem)
+          printf("\"%s\":", renderer->data->table[i].itemvalue);
+        /* If no UTFITEM specified use the serial ID as the key */
+        else
+          printf("\"%i\":", renderer->data->table[i].serialid);
+        printf("%s", renderer->data->table[i].datavalues);
+      }
+    }
+    printf("}}");
   }
-
-  printf("],\"keys\":[\"\"");
-
-  /* Prints the key specified */
-  for(i=0;i<renderer->data->counter;i++) {  
-      printf(",");
-
-    if(renderer->useutfitem)
-      printf("\"%s\"", renderer->data->table[i].itemvalue);
-    /* If no UTFITEM specified use the serial ID as the key */
-    else
-      printf("\"%i\"", renderer->data->table[i].serialid);
+  else {
+    msSetError(MS_MISCERR, "UTFITEM and UTFDATA arent set for the requested layer in the mapfile.", "utfgridSaveImage()");
+    return MS_FAILURE;
   }
-
-  printf("],\"data\":{");
-
-  /* Print the datas */
-  for(i=0;i<renderer->data->counter;i++) {
-    if(i!=0)
-      printf(",");
-
-    if(renderer->useutfitem)
-      printf("\"%s\":", renderer->data->table[i].itemvalue);
-    /* If no UTFITEM specified use the serial ID as the key */
-    else
-      printf("\"%i\":", renderer->data->table[i].serialid);
-    printf("%s", renderer->data->table[i].datavalues);
-  }
-
-  printf("}}");
 
   return MS_SUCCESS;
 }
@@ -457,10 +471,14 @@ int utfgridStartLayer(imageObj *img, mapObj *map, layerObj *layer)
   UTFGridRenderer *r = UTFGRID_RENDERER(img);
 
   /* Look if the layer uses the UTFGrid output format */
-  if(&layer->utfdata!=NULL) {
+  if(layer->utfdata.string!=0) {
+    r->useutfdata = 1;
+  }
 
     /* layerwatch is set to 1 on first layer treated. Doesn't allow multiple layers. */
     if(!r->layerwatch) {
+      r->layerwatch++;
+
       r->renderlayer = 1;
       r->utflayer = layer;
       layer->refcount++;
@@ -468,16 +486,13 @@ int utfgridStartLayer(imageObj *img, mapObj *map, layerObj *layer)
       /* Verify if renderer needs to use UTFITEM */
       if(r->utflayer->utfitem)
         r->useutfitem = 1;
-    
-      /* Watch for multiple layers rendering, allow only one layer. */
-      r->layerwatch = 1;
     }
     /* If multiple layers, send error */
     else {
-      msSetError(MS_MISCERR, "MapServer does not support multiple UTFGrid layers", "utfgridStartLayer()");
+      r->layerwatch++;
+      msSetError(MS_MISCERR, "MapServer does not support multiple UTFGrid layers rendering simultaneously.", "utfgridStartLayer()");
       return MS_FAILURE;
     }
-  }
 
   return MS_SUCCESS;
 }
@@ -504,7 +519,10 @@ int utfgridEndLayer(imageObj *img, mapObj *map, layerObj *layer)
  */
 int utfgridStartShape(imageObj *img, shapeObj *shape)
 {  
-  UTFGridRenderer *r = UTFGRID_RENDERER(img);  
+  UTFGridRenderer *r = UTFGRID_RENDERER(img);
+
+  if(!r->renderlayer)
+    return MS_FAILURE;  
 
   /* Table operations */
   r->utfvalue = addToTable(r, shape);
@@ -542,7 +560,6 @@ int utfgridRenderPolygon(imageObj *img, shapeObj *polygonshape, colorObj *color)
 
   /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
-    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderPolygon()");
     return MS_FAILURE;
   }
 
@@ -563,7 +580,6 @@ int utfgridRenderLine(imageObj *img, shapeObj *lineshape, strokeStyleObj *linest
 
   /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
-    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
   }
 
@@ -592,7 +608,6 @@ int utfgridRenderVectorSymbol(imageObj *img, double x, double y, symbolObj *symb
 
   /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
-    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
   }  
 
@@ -623,7 +638,6 @@ int utfgridRenderPixmapSymbol(imageObj *img, double x, double y, symbolObj *symb
 
   /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
-    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
   }  
 
@@ -652,7 +666,6 @@ int utfgridRenderEllipseSymbol(imageObj *img, double x, double y, symbolObj *sym
 
   /* utfvalue is set to 0 if the shape isn't in the table. */
   if(r->utfvalue == 0) {
-    msSetError(MS_MISCERR, "Rendering shape withouth going through utfgridStartShape", "utfgridRenderLine()");
     return MS_FAILURE;
   }  
 

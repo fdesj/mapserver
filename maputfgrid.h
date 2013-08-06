@@ -2,7 +2,7 @@
  * $Id$
  *
  * Project:  MapServer
- * Purpose:  UTFGrid rendering functions (using AGG primitives)
+ * Purpose:  UTFGrid rendering functions (using AGG)
  * Author:   Francois Desjarlais
  *
  ******************************************************************************
