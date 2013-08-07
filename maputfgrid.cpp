@@ -99,9 +99,9 @@ public:
 class polygon_adaptor_utf:public polygon_adaptor
 {
 public:
-  polygon_adaptor_utf(shapeObj *shape,int utfres):polygon_adaptor(shape) 
+  polygon_adaptor_utf(shapeObj *shape,int utfres_in):polygon_adaptor(shape) 
   {
-    utfresolution = utfres;
+    utfresolution = utfres_in;
   }
 
   virtual unsigned vertex(double* x, double* y) 
@@ -139,9 +139,9 @@ private:
 class line_adaptor_utf:public line_adaptor
 {
 public:
-  line_adaptor_utf(shapeObj *shape,int utfres):line_adaptor(shape) 
+  line_adaptor_utf(shapeObj *shape,int utfres_in):line_adaptor(shape) 
   {
-    utfresolution = utfres;
+    utfresolution = utfres_in;
   }
 
   virtual unsigned vertex(double* x, double* y)
