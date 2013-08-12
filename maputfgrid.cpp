@@ -380,7 +380,7 @@ int utfgridFreeImage(imageObj *img)
  */
 int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
-  int row, col, i, waterPresence;
+  int row, col, i;
   band_type pixelid;
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
@@ -392,7 +392,6 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 
     printf("{\"grid\":[");
 
-    waterPresence = 0;
     /* Print the buffer, also */  
     for(row=0; row<img->height/renderer->utfresolution; row++) {
       
@@ -407,10 +406,6 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
         /* Get the datas from buffer. */
         pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
 
-        /* A pixelid value of 32 means theres water so we need to specify it to add it in the JSON */
-        if(pixelid == 32) {
-          waterPresence = 1;
-        } 
         *stringptr = pixelid;
         stringptr++;      
       }
