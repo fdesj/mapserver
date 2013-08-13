@@ -61,7 +61,7 @@ public:
     serialid = 0;
   }
 
-  ~shapeData(){}
+  ~shapeData() {}
 
   char *datavalues;
   char *itemvalue;
@@ -80,12 +80,15 @@ public:
 
   ~lookupTable() 
   {
-    // int i;
-    // for(i=0;i<counter;i++) {
-    //   msFree(table[i].datavalues);
-    //   msFree(table[i].itemvalue);
-    // }
-    msFree(table); 
+    int i;
+    for(i=0;i<counter;i++)
+    {
+      if(table[i].datavalues)
+        msFree(table[i].datavalues);
+      if(table[i].itemvalue)
+        msFree(table[i].itemvalue);
+    }
+    msFree(table);
   }
 
   shapeData  *table;
