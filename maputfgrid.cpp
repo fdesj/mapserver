@@ -61,7 +61,13 @@ public:
     serialid = 0;
   }
 
-  ~shapeData() {}
+  ~shapeData()
+  {
+    if(datavalues)
+      msFree(datavalues);
+    if(itemvalue)
+      msFree(itemvalue);
+  }
 
   char *datavalues;
   char *itemvalue;
@@ -73,22 +79,14 @@ class lookupTable {
 public:
   lookupTable()
   {
-    table = new shapeData;
+    table = new shapeData[1];
     size = 1;
     counter = 0;
   }
 
   ~lookupTable() 
   {
-    int i;
-    for(i=0;i<counter;i++)
-    {
-      if(table[i].datavalues)
-        msFree(table[i].datavalues);
-      if(table[i].itemvalue)
-        msFree(table[i].itemvalue);
-    }
-    msFree(table);
+    delete[] table; 
   }
 
   shapeData  *table;
@@ -240,8 +238,25 @@ lookupTable *initTable()
 int growTable(lookupTable *data)
 {
   if(data->size == data->counter) {
-    data->table = (shapeData*) msSmallRealloc(data->table,sizeof(*data->table)*data->size*2);
+    shapeData *resizedtable, *todelete;
+    int i;
+
+    resizedtable = new shapeData[data->size*2];
+    todelete = data->table;
+
+    for(i=0;i<data->counter;i++) {
+      if(todelete[i].datavalues)
+        resizedtable[i].datavalues = msStrdup(todelete[i].datavalues);
+      if(todelete[i].itemvalue)
+        resizedtable[i].itemvalue = msStrdup(todelete[i].itemvalue);
+      resizedtable[i].utfvalue = todelete[i].utfvalue;
+      resizedtable[i].serialid = todelete[i].serialid;
+    }
+
+    data->table = resizedtable;
     data->size = data->size*2;
+
+    delete[] todelete;
   }
   return MS_SUCCESS;
 }
@@ -408,7 +423,7 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       for(col=0; col<img->width/renderer->utfresolution; col++) {
         /* Get the datas from buffer. */
         pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
-
+ 
         *stringptr = pixelid;
         stringptr++;      
       }
