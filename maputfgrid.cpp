@@ -61,13 +61,7 @@ public:
     serialid = 0;
   }
 
-  ~shapeData()
-  {
-    if(datavalues)
-      msFree(datavalues);
-    if(itemvalue)
-      msFree(itemvalue);
-  }
+  ~shapeData() {}
 
   char *datavalues;
   char *itemvalue;
@@ -79,14 +73,23 @@ class lookupTable {
 public:
   lookupTable()
   {
-    table = new shapeData[1];
+    table = new shapeData;
     size = 1;
     counter = 0;
   }
 
   ~lookupTable() 
   {
-    delete[] table; 
+    int i;
+
+    for(i=0; i<size; i++)
+    {
+      if(table[i].datavalues)
+        msFree(table[i].datavalues);
+      if(table[i].itemvalue)
+        msFree(table[i].itemvalue);
+    }
+    msFree(table); 
   }
 
   shapeData  *table;
@@ -238,25 +241,18 @@ lookupTable *initTable()
 int growTable(lookupTable *data)
 {
   if(data->size == data->counter) {
-    shapeData *resizedtable, *todelete;
     int i;
 
-    resizedtable = new shapeData[data->size*2];
-    todelete = data->table;
-
-    for(i=0;i<data->counter;i++) {
-      if(todelete[i].datavalues)
-        resizedtable[i].datavalues = msStrdup(todelete[i].datavalues);
-      if(todelete[i].itemvalue)
-        resizedtable[i].itemvalue = msStrdup(todelete[i].itemvalue);
-      resizedtable[i].utfvalue = todelete[i].utfvalue;
-      resizedtable[i].serialid = todelete[i].serialid;
-    }
-
-    data->table = resizedtable;
+    data->table = (shapeData*) msSmallRealloc(data->table,sizeof(*data->table)*data->size*2);
     data->size = data->size*2;
 
-    delete[] todelete;
+    for(i=data->counter; i<data->size; i++)
+    {
+      data->table[i].datavalues = NULL;
+      data->table[i].itemvalue = NULL;
+      data->table[i].utfvalue = 0;
+      data->table[i].serialid = 0;
+    }
   }
   return MS_SUCCESS;
 }
