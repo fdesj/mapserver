@@ -258,21 +258,6 @@ int growTable(lookupTable *data)
 }
 
 /*
- * Free the memory used by the lookup table.
- */
-int freeTable(lookupTable *data)
-{
-  int i;
-  for(i=0;i<data->counter;i++) {
-    msFree(data->table[i].datavalues);
-    msFree(data->table[i].itemvalue);
-  }
-  msFree(data->table);
-  msFree(data);
-  return MS_SUCCESS;
-}
-
-/*
  * Add the shapeObj UTFDATA and UTFITEM to the lookup table.
  */
 band_type addToTable(UTFGridRenderer *r, shapeObj *p)
