@@ -50,19 +50,8 @@ static utfpix32 UTF_WATER = utfpix32(32);
 
 #define utfitem(c) utfpix32(c)
 
-class shapeData 
+struct shapeData 
 {
-public:
-  shapeData()
-  {
-    datavalues = NULL;
-    itemvalue = NULL;
-    utfvalue = 0;
-    serialid = 0;
-  }
-
-  ~shapeData() {}
-
   char *datavalues;
   char *itemvalue;
   band_type utfvalue;
@@ -73,7 +62,11 @@ class lookupTable {
 public:
   lookupTable()
   {
-    table = new shapeData;
+    table = (shapeData*) msSmallMalloc(sizeof(shapeData));
+    table->datavalues = NULL;
+    table->itemvalue = NULL;
+    table->utfvalue = 0;
+    table->serialid = 0;
     size = 1;
     counter = 0;
   }
@@ -225,34 +218,21 @@ unsigned int encodeForRendering(unsigned int toencode)
 }
 
 /*
- * Initialize the lookup table and allocate memory.
- */
-lookupTable *initTable()
-{
-  lookupTable *data;
-  data = new lookupTable;
-
-  return data;
-}
-
-/*
  * Allocate more memory to the table if necessary.
  */
 int growTable(lookupTable *data)
 {
-  if(data->size == data->counter) {
-    int i;
+  int i;
 
-    data->table = (shapeData*) msSmallRealloc(data->table,sizeof(*data->table)*data->size*2);
-    data->size = data->size*2;
+  data->table = (shapeData*) msSmallRealloc(data->table,sizeof(*data->table)*data->size*2);
+  data->size = data->size*2;
 
-    for(i=data->counter; i<data->size; i++)
-    {
-      data->table[i].datavalues = NULL;
-      data->table[i].itemvalue = NULL;
-      data->table[i].utfvalue = 0;
-      data->table[i].serialid = 0;
-    }
+  for(i=data->counter; i<data->size; i++)
+  {
+    data->table[i].datavalues = NULL;
+    data->table[i].itemvalue = NULL;
+    data->table[i].utfvalue = 0;
+    data->table[i].serialid = 0;
   }
   return MS_SUCCESS;
 }
@@ -278,7 +258,8 @@ band_type addToTable(UTFGridRenderer *r, shapeObj *p)
   }
 
   /* Grow size of table if necessary */
-  growTable(r->data);
+  if(r->data->size == r->data->counter)
+    growTable(r->data);
 
   utfvalue = (r->data->counter+1);
 
@@ -324,7 +305,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   UTFGridRenderer *r;
   r = new UTFGridRenderer;
 
-  r->data = initTable();
+  r->data = new lookupTable;
 
   r->utfresolution = atof(msGetOutputFormatOption(format, "UTFRESOLUTION", "4"));
 
@@ -389,7 +370,7 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
 
   if(renderer->useutfitem || renderer->useutfdata) {
 
-    printf("{\"grid\":[");
+    fprintf(fp,"{\"grid\":[");
 
     /* Print the buffer, also */  
     for(row=0; row<img->height/renderer->utfresolution; row++) {
@@ -399,8 +380,8 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       stringptr = string;
       /* Needs comma between each lines but JSON must not start with a comma. */
       if(row!=0)
-        printf(",");
-      printf("\"");
+        fprintf(fp,",");
+      fprintf(fp,"\"");
       for(col=0; col<img->width/renderer->utfresolution; col++) {
         /* Get the datas from buffer. */
         pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
@@ -413,41 +394,41 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
       *stringptr = '\0';  
       char * utf8;
       utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
-      printf("%s", utf8);
+      fprintf(fp,"%s", utf8);
       msFree(utf8);
-      printf("\"");
+      fprintf(fp,"\"");
     }
 
-    printf("],\"keys\":[\"\"");
+    fprintf(fp,"],\"keys\":[\"\"");
 
     /* Prints the key specified */
     for(i=0;i<renderer->data->counter;i++) {  
-        printf(",");
+        fprintf(fp,",");
 
       if(renderer->useutfitem)
-        printf("\"%s\"", renderer->data->table[i].itemvalue);
+        fprintf(fp,"\"%s\"", renderer->data->table[i].itemvalue);
       /* If no UTFITEM specified use the serial ID as the key */
       else
-        printf("\"%i\"", renderer->data->table[i].serialid);
+        fprintf(fp,"\"%i\"", renderer->data->table[i].serialid);
     }
 
-    printf("],\"data\":{");
+    fprintf(fp,"],\"data\":{");
 
     /* Print the datas */
     if(renderer->useutfdata) {
       for(i=0;i<renderer->data->counter;i++) {
         if(i!=0)
-          printf(",");
+          fprintf(fp,",");
 
         if(renderer->useutfitem)
-          printf("\"%s\":", renderer->data->table[i].itemvalue);
+          fprintf(fp,"\"%s\":", renderer->data->table[i].itemvalue);
         /* If no UTFITEM specified use the serial ID as the key */
         else
-          printf("\"%i\":", renderer->data->table[i].serialid);
-        printf("%s", renderer->data->table[i].datavalues);
+          fprintf(fp,"\"%i\":", renderer->data->table[i].serialid);
+        fprintf(fp,"%s", renderer->data->table[i].datavalues);
       }
     }
-    printf("}}");
+    fprintf(fp,"}}");
   }
   else {
     msSetError(MS_MISCERR, "UTFITEM and/or UTFDATA arent set for the requested layer in the mapfile.", "utfgridSaveImage()");
