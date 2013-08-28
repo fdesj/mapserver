@@ -945,6 +945,10 @@ extern "C" {
 #endif
   };
 
+#define MS_STYLE_SINGLE_SIDED_OFFSET -99
+#define MS_STYLE_DOUBLE_SIDED_OFFSET -999
+#define IS_PARALLEL_OFFSET(offsety) (offsety == MS_STYLE_SINGLE_SIDED_OFFSET || offsety == MS_STYLE_DOUBLE_SIDED_OFFSET)
+
 
 
   /********************************************************************/
@@ -2099,6 +2103,7 @@ extern "C" {
   MS_DLL_EXPORT int msLoadSymbolSet(symbolSetObj *symbolset, mapObj *map);
   MS_DLL_EXPORT int msCopySymbol(symbolObj *dst, symbolObj *src, mapObj *map);
   MS_DLL_EXPORT int msCopySymbolSet(symbolSetObj *dst, symbolSetObj *src, mapObj *map);
+  MS_DLL_EXPORT int msCopyHashTable(hashTableObj *dst, hashTableObj *src);
   MS_DLL_EXPORT void msInitSymbolSet(symbolSetObj *symbolset);
   MS_DLL_EXPORT symbolObj *msGrowSymbolSet( symbolSetObj *symbolset );
   MS_DLL_EXPORT int msAddImageSymbol(symbolSetObj *symbolset, char *filename);
@@ -2120,7 +2125,7 @@ extern "C" {
 
   MS_DLL_EXPORT imageObj *msDrawLegend(mapObj *map, int scale_independent, map_hittest *hittest); /* in maplegend.c */
   MS_DLL_EXPORT int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_y,
-                                     int *alayers, int numl_ayer, map_hittest *hittest);
+                                     int *alayers, int numl_ayer, map_hittest *hittest, int resolutionfactor);
   MS_DLL_EXPORT int msEmbedLegend(mapObj *map, imageObj *img);
   MS_DLL_EXPORT int msDrawLegendIcon(mapObj* map, layerObj* lp, classObj* myClass, int width, int height, imageObj *img, int dstX, int dstY, int scale_independant, class_hittest *hittest);
   MS_DLL_EXPORT imageObj *msCreateLegendIcon(mapObj* map, layerObj* lp, classObj* myClass, int width, int height, int scale_independant);
@@ -2338,7 +2343,6 @@ extern "C" {
   MS_DLL_EXPORT int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, styleObj *style, double scalefactor);
   MS_DLL_EXPORT int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, styleObj *style, double scalefactor);
   MS_DLL_EXPORT int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, styleObj *style, double scalefactor);
-  MS_DLL_EXPORT int msCircleDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, pointObj *p, double r, styleObj *style, double scalefactor);
   MS_DLL_EXPORT int msCircleDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, pointObj *p, double r, styleObj *style, double scalefactor);
   MS_DLL_EXPORT int msDrawPieSlice(symbolSetObj *symbolset, imageObj *image, pointObj *p, styleObj *style, double radius, double start, double end);
 
@@ -2635,6 +2639,7 @@ extern "C" {
   MS_DLL_EXPORT shapeObj *msGEOSIntersection(shapeObj *shape1, shapeObj *shape2);
   MS_DLL_EXPORT shapeObj *msGEOSDifference(shapeObj *shape1, shapeObj *shape2);
   MS_DLL_EXPORT shapeObj *msGEOSSymDifference(shapeObj *shape1, shapeObj *shape2);
+  MS_DLL_EXPORT shapeObj *msGEOSOffsetCurve(shapeObj *p, double offset);
 
   MS_DLL_EXPORT int msGEOSContains(shapeObj *shape1, shapeObj *shape2);
   MS_DLL_EXPORT int msGEOSOverlaps(shapeObj *shape1, shapeObj *shape2);

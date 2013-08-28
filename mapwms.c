@@ -31,6 +31,7 @@
 
 #include "mapserver.h"
 #include "maperror.h"
+#include "mapthread.h"
 #include "mapgml.h"
 #include <ctype.h>
 #include "maptemplate.h"
@@ -2412,7 +2413,7 @@ int msDumpLayer(mapObj *map, layerObj *lp, int nVersion, const char *script_url_
             }
             group_layers =(int *)msSmallRealloc(group_layers, sizeof(int)*num_layers);
             
-            if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers, num_layers, NULL) == MS_SUCCESS) {
+            if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers, num_layers, NULL, 1) == MS_SUCCESS) {
               const char *styleName = NULL;
               char *pszEncodedStyleName = NULL;
               layerObj *lp2 = NULL;
@@ -3287,7 +3288,7 @@ int msWMSGetCapabilities(mapObj *map, int nVersion, cgiRequestObj *req, owsReque
           char width[10], height[10];
 
           group_layers =(int *)msSmallRealloc(group_layers, sizeof(int)*num_layers);
-          if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers , num_layers, NULL) == MS_SUCCESS) {
+          if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers , num_layers, NULL, 1) == MS_SUCCESS) {
             bufferSize = strlen(script_url_encoded)+300;
             pszLegendURL = (char*)msSmallMalloc(bufferSize);
             snprintf(width, sizeof(width), "%d", size_x);
@@ -3464,7 +3465,7 @@ int msWMSGetCapabilities(mapObj *map, int nVersion, cgiRequestObj *req, owsReque
                   char width[10], height[10];
 
                   group_layers =(int *)msSmallRealloc(group_layers,  sizeof(int)*num_layers);
-                  if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers , num_layers, NULL) == MS_SUCCESS) {
+                  if (msLegendCalcSize(map, 1, &size_x, &size_y,  group_layers , num_layers, NULL, 1) == MS_SUCCESS) {
                     bufferSize = strlen(script_url_encoded)+300;
                     pszLegendURL = (char*)msSmallMalloc(bufferSize);
                     snprintf(width, sizeof(width), "%d", size_x);
@@ -4934,7 +4935,10 @@ int msWMSDispatch(mapObj *map, cgiRequestObj *req, owsRequestObj *ows_request, i
       msSetError(MS_WMSERR, "WMS request not enabled. Check wms/ows_enable_request settings.", "msWMSGetCapabilities()");
       return msWMSException(map, nVersion, NULL, wms_exception_format);
     }
-    return msWMSGetCapabilities(map, nVersion, req, ows_request, updatesequence, wms_exception_format, language);
+    msAcquireLock(TLOCK_WxS);
+    status=msWMSGetCapabilities(map, nVersion, req, ows_request, updatesequence, wms_exception_format, language);
+    msReleaseLock(TLOCK_WxS);
+    return status;
   } else if (request && (strcasecmp(request, "context") == 0 ||
                          strcasecmp(request, "GetContext") == 0) ) {
     /* Return a context document with all layers in this mapfile

@@ -100,9 +100,9 @@ or not.
    Cmake expects these nonstandard prefixes to contain standard subdirectories, i.e.
    /opt/cairo-1.18.2/include/cairo.h and /opt/cairo-1.18.2/lib/libcairo.so.
    You can specify multiple prefixes on the cmake command line by separating them with
-   a semi-colon, e.g.
+   the platform specific separator (e.g. ":" on unixes), e.g.
 
-   $ cmake .. -DCMAKE_PREFIX_PATH=/opt/cairo-1.18.2;/opt/freeware
+   $ cmake .. -DCMAKE_PREFIX_PATH=/opt/cairo-1.18.2:/opt/freeware
 
  3 If you're certain that the packages development headers are installed, and/or that
    you pointed to a valid installation prefix, but cmake is still failing, then there's
@@ -126,12 +126,15 @@ of these can be enabled or disabled by passing "-DWITH_XXX=0" or "-DWITH_XXX=1" 
  - option(WITH_FRIBIDI "Choose if FriBidi glyph shaping support should be built in (usefull for left-to-right languages)" ON)
  - option(WITH_ICONV "Choose if Iconv Internationalization support should be built in" ON)
  - option(WITH_CAIRO "Choose if CAIRO  rendering support should be built in (required for SVG and PDF output)" ON)
+ - option(WITH_SVGCAIRO "Choose if SVG symbology support (via libsvgcairo) should be built in (requires cairo, libsvg, libsvg-cairo. Incompatible with librsvg)" OFF)
+ - option(WITH_RSVG "Choose if SVG symbology support (via librsvg) should be built in (requires cairo, librsvg. Incompatible with libsvg-cairo)" OFF)
  - option(WITH_MYSQL "Choose if MYSQL joining support should be built in" OFF)
  - option(WITH_FCGI "Choose if FastCGI support should be built in" ON)
  - option(WITH_GEOS "Choose if GEOS geometry operations support should be built in" ON)
  - option(WITH_POSTGIS "Choose if Postgis input support should be built in" ON)
  - option(WITH_GDAL "Choose if GDAL input raster support should be built in" ON)
  - option(WITH_OGR "Choose if OGR/GDAL input vector support should be built in" ON)
+ - option(WITH_CURL "Enable Curl HTTP support (required for wms/wfs client, remote SLDs and pixmap symbols)" OFF)
  - option(WITH_CLIENT_WMS "Enable Client WMS Layer support (requires CURL and GDAL support)" OFF)
  - option(WITH_CLIENT_WFS "Enable Client WMS Layer support (requires CURL and OGR support)" OFF)
  - option(WITH_WFS "Enable WFS Server support (requires PROJ and OGR support)" ON)
@@ -145,12 +148,11 @@ of these can be enabled or disabled by passing "-DWITH_XXX=0" or "-DWITH_XXX=1" 
  - option(WITH_RUBY "Enable Ruby mapscript support" OFF)
  - option(WITH_JAVA "Enable Java mapscript support" OFF)
  - option(WITH_CSHARP "Enable C# mapscript support" OFF)
- - option(WITH_POINT_Z_M "include Z and M coordinates in point structure (advanced, not recommended)" OFF)
  - option(WITH_ORACLESPATIAL "include oracle spatial database input support" OFF)
  - option(WITH_ORACLE_PLUGIN "include oracle spatial database input support as plugin" OFF)
  - option(WITH_MSSQL2008 "include mssql 2008 database input support as plugin" OFF)
- - option(WITH_SDE91 "include ArcSDE version 9.1 support (must specify SDE_INCLUDE_DIR and SDE_LIBRARY_DIR)" OFF)
- - option(WITH_SDE92 "include ArcSDE version 9.2 support (must specify SDE_INCLUDE_DIR and SDE_LIBRARY_DIR)" OFF)
+ - option(WITH_SDE_PLUGIN "include ArcSDE support as a plugin (must specify SDE_INCLUDE_DIR and SDE_LIBRARY_DIR)." OFF)
+ - option(WITH_SDE "include ArcSDE support. Add -DSDE_VERSION=91 to use 9.1 arcSDE version" OFF)
  - option(WITH_EXEMPI "include xmp output metadata support" OFF)
  - option(WITH_XMLMAPFILE "include native xml mapfile support (requires libxslt/libexslt)" OFF)
 
@@ -160,16 +162,16 @@ you know what you are doing:
 
  - option(BUILD_STATIC "Also build a static version of mapserver" OFF)
  - option(LINK_STATIC_LIBMAPSERVER "Link to static version of libmapserver (also for mapscripts)" OFF)
- - option(WITH_FLEX_BISON "Regenerate parser" OFF)
  - option(WITH_APACHE_MODULE "include (experimental) support for apache module" OFF)
  - option(WITH_GENERIC_NINT "generic rounding" OFF)
+ - option(WITH_POINT_Z_M "include Z and M coordinates in point structure (advanced, not recommended)" OFF)
 
 The following are some common CMake options not specific to MapServer itself:
 
  - CMAKE_INSTALL_PREFIX : path where mapserver binaries and libraries should be installed. Defaults
    to /usr/local on unix.
- - CMAKE_PREFIX_PATH : semi-colon separted list of prefixes where dependencies will be looked for, e.g.
-   "-DCMAKE_PREFIX_PATH=/opt/freeware;/opt/jdk-1.5.6"
+ - CMAKE_PREFIX_PATH : platform-specific separator separated list of prefixes where dependencies will be looked for, e.g.
+   "-DCMAKE_PREFIX_PATH=/opt/freeware:/opt/jdk-1.5.6"
  - CMAKE_BUILD_TYPE : Specify the build type. Usually one of 'Debug' or 'Release', e.g.
    "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_BUILD_TYPE=Debug"
 

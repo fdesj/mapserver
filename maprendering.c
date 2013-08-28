@@ -520,8 +520,10 @@ int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p,
         finalscalefactor = 1.0;
       }
 
-      if(style->offsety==-99) {
-        offsetLine = msOffsetPolyline(p,style->offsetx * finalscalefactor ,-99);
+      if(style->offsety==MS_STYLE_SINGLE_SIDED_OFFSET) {
+        offsetLine = msOffsetPolyline(p,style->offsetx * finalscalefactor ,MS_STYLE_SINGLE_SIDED_OFFSET);
+      } else if(style->offsety==MS_STYLE_DOUBLE_SIDED_OFFSET) {
+        offsetLine = msOffsetPolyline(p,style->offsetx * finalscalefactor ,MS_STYLE_DOUBLE_SIDED_OFFSET);
       } else if(style->offsetx!=0 || style->offsety!=0) {
         offsetLine = msOffsetPolyline(p, style->offsetx * finalscalefactor,
                                       style->offsety * finalscalefactor);
@@ -641,10 +643,13 @@ int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, sty
         symbol->renderer = renderer;
 
       if (style->offsetx != 0 || style->offsety != 0) {
-        if(style->offsety==-99)
-          offsetPolygon = msOffsetPolyline(p, style->offsetx*scalefactor, -99);
-        else
+        if(style->offsety==MS_STYLE_SINGLE_SIDED_OFFSET) {
+          offsetPolygon = msOffsetPolyline(p, style->offsetx*scalefactor, MS_STYLE_SINGLE_SIDED_OFFSET);
+        } else if(style->offsety==MS_STYLE_DOUBLE_SIDED_OFFSET) {
+          offsetPolygon = msOffsetPolyline(p,style->offsetx * scalefactor ,MS_STYLE_DOUBLE_SIDED_OFFSET);
+        } else {
           offsetPolygon = msOffsetPolyline(p, style->offsetx*scalefactor,style->offsety*scalefactor);
+        }
       } else {
         offsetPolygon=p;
       }
@@ -1016,23 +1021,6 @@ int msDrawTextLine(imageObj *image, char *string, labelObj *label, labelPathObj 
   }
 
   return nReturnVal;
-}
-
-
-/************************************************************************/
-/*                          msCircleDrawLineSymbol                      */
-/*                                                                      */
-/************************************************************************/
-int msCircleDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, pointObj *p, double r, styleObj *style, double scalefactor)
-{
-  shapeObj *circle;
-  if (!image) return MS_FAILURE;
-  circle = msRasterizeArc(p->x, p->y, r, 0, 360, 0);
-  if (!circle) return MS_FAILURE;
-  msDrawLineSymbol(symbolset, image, circle, style, scalefactor);
-  msFreeShape(circle);
-  msFree(circle);
-  return MS_SUCCESS;
 }
 
 int msCircleDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, pointObj *p, double r, styleObj *style, double scalefactor)
