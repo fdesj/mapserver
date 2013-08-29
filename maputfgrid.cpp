@@ -308,6 +308,10 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
   r->data = new lookupTable;
 
   r->utfresolution = atof(msGetOutputFormatOption(format, "UTFRESOLUTION", "4"));
+  if(r->utfresolution < 1) {
+    msSetError(MS_MISCERR, "UTFRESOLUTION smaller that 1 in the mapfile.", "utfgridCreateImage()");
+    return NULL;
+  }
 
   r->layerwatch = 0;
 
@@ -317,7 +321,7 @@ imageObj *utfgridCreateImage(int width, int height, outputFormatObj *format, col
 
   r->useutfdata = 0;
 
-  r->duplicates = strcmp("false", msGetOutputFormatOption(format, "DUPLICATES", "true"));
+  r->duplicates = EQUAL("true", msGetOutputFormatOption(format, "DUPLICATES", "true"));
 
   r->utfvalue = 0;
 
@@ -360,7 +364,7 @@ int utfgridFreeImage(imageObj *img)
  */
 int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *format)
 {
-  int row, col, i;
+  int row, col, i, imgheight, imgwidth;
   band_type pixelid;
  
   UTFGridRenderer *renderer = UTFGRID_RENDERER(img);
@@ -368,72 +372,68 @@ int utfgridSaveImage(imageObj *img, mapObj *map, FILE *fp, outputFormatObj *form
   if(renderer->layerwatch>1)
     return MS_FAILURE; 
 
-  if(renderer->useutfitem || renderer->useutfdata) {
+  imgheight = img->height/renderer->utfresolution;
+  imgwidth = img->width/renderer->utfresolution;
 
-    fprintf(fp,"{\"grid\":[");
+  fprintf(fp,"{\"grid\":[");
 
-    /* Print the buffer, also */  
-    for(row=0; row<img->height/renderer->utfresolution; row++) {
-      
-      wchar_t string[img->width/renderer->utfresolution + 1];
-      wchar_t *stringptr;
-      stringptr = string;
-      /* Needs comma between each lines but JSON must not start with a comma. */
-      if(row!=0)
-        fprintf(fp,",");
-      fprintf(fp,"\"");
-      for(col=0; col<img->width/renderer->utfresolution; col++) {
-        /* Get the datas from buffer. */
-        pixelid = renderer->buffer[(row*img->width/renderer->utfresolution)+col];
- 
-        *stringptr = pixelid;
-        stringptr++;      
-      }
+  /* Print the buffer, also */  
+  for(row=0; row<imgheight; row++) {
+    
+    wchar_t string[imgwidth + 1];
+    wchar_t *stringptr;
+    stringptr = string;
+    /* Needs comma between each lines but JSON must not start with a comma. */
+    if(row!=0)
+      fprintf(fp,",");
+    fprintf(fp,"\"");
+    for(col=0; col<img->width/renderer->utfresolution; col++) {
+      /* Get the datas from buffer. */
+      pixelid = renderer->buffer[(row*imgwidth)+col];
 
-      /* Convertion to UTF-8 encoding */
-      *stringptr = '\0';  
-      char * utf8;
-      utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
-      fprintf(fp,"%s", utf8);
-      msFree(utf8);
-      fprintf(fp,"\"");
+      *stringptr = pixelid;
+      stringptr++;      
     }
 
-    fprintf(fp,"],\"keys\":[\"\"");
+    /* Convertion to UTF-8 encoding */
+    *stringptr = '\0';  
+    char * utf8;
+    utf8 = msConvertWideStringToUTF8 (string, "UCS-4LE");
+    fprintf(fp,"%s", utf8);
+    msFree(utf8);
+    fprintf(fp,"\"");
+  }
 
-    /* Prints the key specified */
-    for(i=0;i<renderer->data->counter;i++) {  
+  fprintf(fp,"],\"keys\":[\"\"");
+
+  /* Prints the key specified */
+  for(i=0;i<renderer->data->counter;i++) {  
+      fprintf(fp,",");
+
+    if(renderer->useutfitem)
+      fprintf(fp,"\"%s\"", renderer->data->table[i].itemvalue);
+    /* If no UTFITEM specified use the serial ID as the key */
+    else
+      fprintf(fp,"\"%i\"", renderer->data->table[i].serialid);
+  }
+
+  fprintf(fp,"],\"data\":{");
+
+  /* Print the datas */
+  if(renderer->useutfdata) {
+    for(i=0;i<renderer->data->counter;i++) {
+      if(i!=0)
         fprintf(fp,",");
 
       if(renderer->useutfitem)
-        fprintf(fp,"\"%s\"", renderer->data->table[i].itemvalue);
+        fprintf(fp,"\"%s\":", renderer->data->table[i].itemvalue);
       /* If no UTFITEM specified use the serial ID as the key */
       else
-        fprintf(fp,"\"%i\"", renderer->data->table[i].serialid);
+        fprintf(fp,"\"%i\":", renderer->data->table[i].serialid);
+      fprintf(fp,"%s", renderer->data->table[i].datavalues);
     }
-
-    fprintf(fp,"],\"data\":{");
-
-    /* Print the datas */
-    if(renderer->useutfdata) {
-      for(i=0;i<renderer->data->counter;i++) {
-        if(i!=0)
-          fprintf(fp,",");
-
-        if(renderer->useutfitem)
-          fprintf(fp,"\"%s\":", renderer->data->table[i].itemvalue);
-        /* If no UTFITEM specified use the serial ID as the key */
-        else
-          fprintf(fp,"\"%i\":", renderer->data->table[i].serialid);
-        fprintf(fp,"%s", renderer->data->table[i].datavalues);
-      }
-    }
-    fprintf(fp,"}}");
   }
-  else {
-    msSetError(MS_MISCERR, "UTFITEM and/or UTFDATA arent set for the requested layer in the mapfile.", "utfgridSaveImage()");
-    return MS_FAILURE;
-  }
+  fprintf(fp,"}}");
 
   return MS_SUCCESS;
 }
