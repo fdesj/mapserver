@@ -669,6 +669,11 @@ int utfgridRenderTruetypeSymbol(imageObj *img, double x, double y, symbolObj *sy
   return MS_SUCCESS;
 }
 
+int utfgridFreeSymbol(symbolObj * symbol)
+{
+  return MS_SUCCESS;
+}
+
 /*
  * Add the necessary functions for UTFGrid to the renderer VTable.
  */
@@ -695,6 +700,8 @@ int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer )
   renderer->renderPixmapSymbol = &utfgridRenderPixmapSymbol;
   renderer->renderEllipseSymbol = &utfgridRenderEllipseSymbol;
   renderer->renderTruetypeSymbol = &utfgridRenderTruetypeSymbol;
+
+  renderer->freeSymbol = &utfgridFreeSymbol;
 
   renderer->loadImageFromFile = msLoadMSRasterBufferFromFile;
 
